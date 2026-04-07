@@ -8,18 +8,28 @@ model:
   model_id: claude-sonnet-4-6
   api_key: ${ANTHROPIC_API_KEY}
 
+# Default MCPs are always loaded automatically:
+#   - filesystem (read/write/list/search files)
+#   - fetch (web URL fetching with HTML-to-markdown)
+#   - shell (cross-platform shell command execution)
+#   - computer-use (screenshot, mouse, keyboard control)
+#
+# To disable all defaults:
+#   mcp_defaults: false
+#
+# To disable specific defaults:
+#   mcp_disable: ["computer-use", "fetch"]
+
+# User MCPs are merged on top of defaults:
 mcp:
-  # Built-in MCP: cross-platform computer use (screenshot, mouse, keyboard)
-  - builtin: computer-use
-
-  # Local MCP server (stdio transport)
-  - name: filesystem
-    command: ["npx", "-y", "@anthropic/mcp-filesystem"]
-    args: ["/Users/me/data"]
-
   # Remote MCP server (SSE transport)
   # - name: web-search
   #   url: "http://localhost:8080/sse"
+
+  # Override the default filesystem root:
+  # - name: filesystem
+  #   command: ["npx", "-y", "@modelcontextprotocol/server-filesystem"]
+  #   args: ["/Users/me/data"]
 
 memory:
   db_path: "./openagent.db"

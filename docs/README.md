@@ -98,45 +98,56 @@ class MyModel(BaseModel):
 
 ## MCP (Model Context Protocol)
 
-Configure MCP servers once — they're automatically available to all models and channels.
+MCP servers are automatically available to all models and channels. OpenAgent includes **4 default MCPs** that are always loaded — your custom MCPs are merged on top.
 
-### Built-in MCPs
+### Default MCPs (always loaded)
 
-OpenAgent ships with built-in MCP servers in the `mcps/` directory. Enable them with `builtin:`:
+These are injected automatically. No configuration needed.
+
+| Name | Source | Description | Requires |
+|---|---|---|---|
+| `filesystem` | [@modelcontextprotocol/server-filesystem](https://www.npmjs.com/package/@modelcontextprotocol/server-filesystem) (official) | Read, write, list, search files | Node.js |
+| `fetch` | [mcp-server-fetch](https://pypi.org/project/mcp-server-fetch/) (official) | Fetch web URLs, HTML-to-markdown | Python (uvx) |
+| `shell` | Custom (bundled) | Cross-platform shell command execution | Node.js |
+| `computer-use` | Custom (bundled) | Screenshot, mouse & keyboard control | Node.js |
+
+All defaults are cross-platform (macOS, Linux, Windows). If a prerequisite is missing (e.g. Node.js not installed), that MCP is skipped with a warning.
+
+### Disabling Defaults
 
 ```yaml
-mcp:
-  # Cross-platform computer use (screenshot, mouse, keyboard control)
-  # Auto-installs and builds on first use (requires Node.js)
-  - builtin: computer-use
+# Disable all defaults
+mcp_defaults: false
+
+# Disable specific ones
+mcp_disable: ["computer-use", "fetch"]
 ```
 
-Available built-in MCPs:
+```python
+# Programmatic
+registry = MCPRegistry.from_config(mcp_config=[], include_defaults=False)
+registry = MCPRegistry.from_config(mcp_config=[], disable=["computer-use"])
+```
 
-| Name | Description |
-|---|---|
-| `computer-use` | Cross-platform screenshot capture, mouse & keyboard control. Works on macOS, Linux, Windows. |
+### Adding Your Own MCPs
 
-### Configuration
+User MCPs are merged on top of defaults. If you define one with the same name as a default, yours replaces it.
 
 ```yaml
 mcp:
-  # Built-in MCP
-  - builtin: computer-use
-
-  # Local server (stdio transport)
-  - name: filesystem
-    command: ["npx", "-y", "@anthropic/mcp-filesystem"]
-    args: ["/Users/me/data"]
-
-  # Another local server
+  # Add a custom MCP
   - name: database
     command: ["python", "-m", "mcp_server_sqlite"]
     args: ["--db", "mydata.db"]
 
-  # Remote server (SSE transport)
+  # Remote MCP server
   - name: web-search
     url: "http://localhost:8080/sse"
+
+  # Override the default filesystem root
+  - name: filesystem
+    command: ["npx", "-y", "@modelcontextprotocol/server-filesystem"]
+    args: ["/Users/me/projects"]
 
   # With environment variables
   - name: github
@@ -150,18 +161,20 @@ mcp:
 ```python
 from openagent.mcp import MCPTools, MCPRegistry
 
-# Single server
-mcp = MCPTools(name="fs", command=["npx", "-y", "@anthropic/mcp-filesystem"], args=["/data"])
+# With defaults (filesystem, fetch, shell, computer-use) + custom
+registry = MCPRegistry.from_config(mcp_config=[
+    {"name": "search", "url": "http://localhost:8080/sse"},
+])
 
-# Multiple servers via registry
+# Without defaults
+registry = MCPRegistry.from_config(mcp_config=[...], include_defaults=False)
+
+# Manual
 registry = MCPRegistry()
-registry.add(MCPTools(name="fs", command=["npx", "-y", "@anthropic/mcp-filesystem"], args=["/data"]))
-registry.add(MCPTools(name="search", url="http://localhost:8080/sse"))
+registry.add(MCPTools(name="fs", command=["npx", "-y", "@modelcontextprotocol/server-filesystem"], args=["/data"]))
 
 # Pass to agent
 agent = Agent(model=model, mcp_registry=registry)
-# OR
-agent = Agent(model=model, mcp_tools=[mcp1, mcp2])
 ```
 
 ### List Available Tools
@@ -321,11 +334,10 @@ model:
   api_key: ${ANTHROPIC_API_KEY}
   # base_url: https://...        # only for zhipu/OpenAI-compatible
 
-mcp:
-  - builtin: computer-use          # built-in: screenshot, mouse, keyboard
-  - name: filesystem
-    command: ["npx", "-y", "@anthropic/mcp-filesystem"]
-    args: ["/Users/me/projects"]
+# mcp_defaults: true               # set false to disable all default MCPs
+# mcp_disable: ["computer-use"]    # disable specific default MCPs
+
+mcp:                                # user MCPs (merged on top of defaults)
   - name: web-search
     url: "http://localhost:8080/sse"
 
