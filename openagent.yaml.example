@@ -9,6 +9,9 @@ model:
   api_key: ${ANTHROPIC_API_KEY}
 
 mcp:
+  # Built-in MCP: cross-platform computer use (screenshot, mouse, keyboard)
+  - builtin: computer-use
+
   # Local MCP server (stdio transport)
   - name: filesystem
     command: ["npx", "-y", "@anthropic/mcp-filesystem"]

@@ -100,10 +100,30 @@ class MyModel(BaseModel):
 
 Configure MCP servers once — they're automatically available to all models and channels.
 
+### Built-in MCPs
+
+OpenAgent ships with built-in MCP servers in the `mcps/` directory. Enable them with `builtin:`:
+
+```yaml
+mcp:
+  # Cross-platform computer use (screenshot, mouse, keyboard control)
+  # Auto-installs and builds on first use (requires Node.js)
+  - builtin: computer-use
+```
+
+Available built-in MCPs:
+
+| Name | Description |
+|---|---|
+| `computer-use` | Cross-platform screenshot capture, mouse & keyboard control. Works on macOS, Linux, Windows. |
+
 ### Configuration
 
 ```yaml
 mcp:
+  # Built-in MCP
+  - builtin: computer-use
+
   # Local server (stdio transport)
   - name: filesystem
     command: ["npx", "-y", "@anthropic/mcp-filesystem"]
@@ -302,6 +322,7 @@ model:
   # base_url: https://...        # only for zhipu/OpenAI-compatible
 
 mcp:
+  - builtin: computer-use          # built-in: screenshot, mouse, keyboard
   - name: filesystem
     command: ["npx", "-y", "@anthropic/mcp-filesystem"]
     args: ["/Users/me/projects"]
