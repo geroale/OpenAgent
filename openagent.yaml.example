@@ -1,0 +1,32 @@
+name: my-assistant
+
+system_prompt: |
+  You are a helpful assistant.
+
+model:
+  provider: claude-api           # claude-api | claude-cli | zhipu
+  model_id: claude-sonnet-4-6
+  api_key: ${ANTHROPIC_API_KEY}
+
+mcp:
+  # Local MCP server (stdio transport)
+  - name: filesystem
+    command: ["npx", "-y", "@anthropic/mcp-filesystem"]
+    args: ["/Users/me/data"]
+
+  # Remote MCP server (SSE transport)
+  # - name: web-search
+  #   url: "http://localhost:8080/sse"
+
+memory:
+  db_path: "./openagent.db"
+  auto_extract: true
+
+channels:
+  telegram:
+    token: ${TELEGRAM_BOT_TOKEN}
+  discord:
+    token: ${DISCORD_BOT_TOKEN}
+  whatsapp:
+    green_api_id: ${GREEN_API_ID}
+    green_api_token: ${GREEN_API_TOKEN}
