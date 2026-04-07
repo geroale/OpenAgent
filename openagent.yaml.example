@@ -38,6 +38,7 @@ mcp:
 
 memory:
   db_path: "./openagent.db"
+  knowledge_dir: "./memories"    # Obsidian-compatible .md files (FTS5 indexed)
   auto_extract: true
 
 # Scheduled tasks (cron-based, stored in DB, survive reboots)

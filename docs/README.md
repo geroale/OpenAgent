@@ -205,35 +205,60 @@ openagent mcp list
 
 ## Memory
 
-All memory is stored in a SQLite database. No files, no scattered storage.
+OpenAgent has a **dual memory system**:
+
+1. **SQL memories** (quick facts) — user preferences, short facts stored in SQLite rows
+2. **Knowledge base** (detailed docs) — Obsidian-compatible `.md` files indexed by FTS5
 
 ### Configuration
 
 ```yaml
 memory:
-  db_path: "./openagent.db"     # default: openagent.db
-  auto_extract: true             # auto-extract facts from conversations (default: true)
+  db_path: "./openagent.db"       # SQLite database for sessions, messages, facts
+  knowledge_dir: "./memories"     # Directory for .md knowledge files
+  auto_extract: true              # auto-extract facts + knowledge from conversations
 ```
 
 ### How It Works
 
-- **Session history**: every message is stored immediately in the DB. When a session resumes, the last N messages are loaded as context.
-- **Long-term memory**: after each conversation turn, the model extracts key facts about the user (preferences, context, etc.) and stores them in a `memories` table.
-- **Deduplication**: before storing a new memory, it checks for overlap with existing ones to avoid duplicates.
+- **Session history**: every message stored immediately in SQLite
+- **Quick-access facts**: short user preferences extracted automatically → SQLite `memories` table
+- **Knowledge base**: detailed procedures, architecture notes, references → `.md` files in `memories/` directory
+- **Hybrid search**: FTS5 full-text search across all knowledge files + SQL queries for facts
+- **Deduplication**: checks for overlap before storing new memories
+- **Obsidian-compatible**: `.md` files with YAML frontmatter, `[[wikilinks]]`, and tags — open the `memories/` folder in Obsidian for graph view and visual browsing
+
+### Memory File Format
+
+```markdown
+---
+topic: deploy
+tags: [k8s, wardrobe, ovh]
+links: [mixout-server-architecture, ovh-vps-setup]
+created: 2026-04-07T12:00:00
+updated: 2026-04-07T12:00:00
+---
+# Deploy Wardrobe Service
+To deploy the wardrobe service to OVH k3s...
+```
 
 ### Programmatic Usage
 
 ```python
-from openagent.memory import MemoryDB
+from openagent.memory import MemoryDB, KnowledgeBase
 
-# Pass DB path or MemoryDB instance
-agent = Agent(model=model, memory="my_app.db")
-# OR
-db = MemoryDB("my_app.db")
-agent = Agent(model=model, memory=db)
+agent = Agent(model=model, memory="my_app.db", knowledge_dir="./memories")
 
-# Resume a session
-response = await agent.run("Continue our conversation", session_id="session-123")
+# Search knowledge base
+results = await agent._memory.search_knowledge("how to deploy wardrobe")
+
+# Add knowledge manually
+await agent._memory.remember_knowledge(
+    title="Deploy Procedure",
+    content="rsync + docker build + k3s import...",
+    topic="deploy",
+    tags=["k8s", "ovh"],
+)
 ```
 
 ### Disable Memory
