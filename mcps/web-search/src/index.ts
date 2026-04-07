@@ -1,4 +1,8 @@
 #!/usr/bin/env node
+// Redirect console.log to stderr so it doesn't break MCP stdio protocol
+const _origLog = console.log;
+console.log = (...args: unknown[]) => console.error(...args);
+
 console.log('Web Search MCP Server starting...');
 
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
