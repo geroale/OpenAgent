@@ -50,6 +50,13 @@ scheduler:
   #   cron: "0 9 * * *"
   #   prompt: "Generate and send the daily status report"
 
+# Dream Mode — nightly maintenance routine (built-in scheduled task)
+# Cleans temp files, consolidates memory, checks system health.
+dream_mode:
+  enabled: true
+  time: "3:00"           # Shorthand: runs daily at this time (HH:MM)
+  # cron: "0 3 * * *"    # Or use a full cron expression instead of 'time'
+
 channels:
   telegram:
     token: ${TELEGRAM_BOT_TOKEN}
