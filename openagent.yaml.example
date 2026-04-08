@@ -57,6 +57,12 @@ dream_mode:
   time: "3:00"           # Shorthand: runs daily at this time (HH:MM)
   # cron: "0 3 * * *"    # Or use a full cron expression instead of 'time'
 
+# Auto-update — keep OpenAgent up-to-date automatically
+auto_update:
+  enabled: true
+  mode: auto          # auto | notify | manual
+  check_interval: "0 4 * * *"  # cron expression (default: daily at 4am)
+
 channels:
   telegram:
     token: ${TELEGRAM_BOT_TOKEN}
