@@ -32,6 +32,8 @@ class RuntimePathTests(unittest.TestCase):
             workspace = Path(workspace_tmp)
             (workspace / "openagent.yaml").write_text("name: migrated\n", encoding="utf-8")
             (workspace / "openagent.db").write_text("", encoding="utf-8")
+            (workspace / "openagent.db-wal").write_text("wal", encoding="utf-8")
+            (workspace / "openagent.db-shm").write_text("shm", encoding="utf-8")
             (workspace / "memories").mkdir()
             (workspace / "memories" / "note.md").write_text("# hello\n", encoding="utf-8")
 
@@ -47,8 +49,12 @@ class RuntimePathTests(unittest.TestCase):
             self.assertEqual(config["name"], "migrated")
             self.assertTrue((runtime_root / "openagent.yaml").exists())
             self.assertTrue((runtime_root / "openagent.db").exists())
+            self.assertTrue((runtime_root / "openagent.db-wal").exists())
+            self.assertTrue((runtime_root / "openagent.db-shm").exists())
             self.assertTrue((runtime_root / "memories" / "note.md").exists())
             self.assertFalse((workspace / "openagent.yaml").exists())
+            self.assertFalse((workspace / "openagent.db-wal").exists())
+            self.assertFalse((workspace / "openagent.db-shm").exists())
 
     @unittest.skipUnless(HAS_YAML, "PyYAML is not installed in this environment")
     def test_explicit_config_path_does_not_depend_on_system_root(self):

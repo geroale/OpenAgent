@@ -101,15 +101,36 @@ def migrate_legacy_workspace(workspace: str | Path | None = None) -> dict[str, s
         return {}
 
     moved: dict[str, str] = {}
-    for name, destination in (
-        ("openagent.yaml", paths.config),
-        ("openagent.db", paths.db),
-        ("memories", paths.memories),
-    ):
+    for name, destination in (("openagent.yaml", paths.config),):
         source = src_root / name
         if not source.exists() or destination.exists():
             continue
         destination.parent.mkdir(parents=True, exist_ok=True)
         shutil.move(str(source), str(destination))
         moved[name] = str(destination)
+
+    memories_source = src_root / "memories"
+    if memories_source.exists():
+        if not paths.memories.exists():
+            paths.memories.parent.mkdir(parents=True, exist_ok=True)
+            shutil.move(str(memories_source), str(paths.memories))
+            moved["memories"] = str(paths.memories)
+        elif paths.memories.is_dir() and not any(paths.memories.iterdir()):
+            for child in memories_source.iterdir():
+                shutil.move(str(child), str(paths.memories / child.name))
+            memories_source.rmdir()
+            moved["memories"] = str(paths.memories)
+
+    db_source = src_root / "openagent.db"
+    if db_source.exists() and not paths.db.exists():
+        paths.db.parent.mkdir(parents=True, exist_ok=True)
+        shutil.move(str(db_source), str(paths.db))
+        moved["openagent.db"] = str(paths.db)
+
+        for suffix in ("-wal", "-shm"):
+            sidecar_source = src_root / f"openagent.db{suffix}"
+            sidecar_destination = Path(f"{paths.db}{suffix}")
+            if sidecar_source.exists() and not sidecar_destination.exists():
+                shutil.move(str(sidecar_source), str(sidecar_destination))
+                moved[f"openagent.db{suffix}"] = str(sidecar_destination)
     return moved
