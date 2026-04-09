@@ -8,5 +8,6 @@ build/
 *.sqlite
 .env
 openagent.yaml
+!docs/examples/openagent.yaml
 .venv/
 venv/

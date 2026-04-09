@@ -1,0 +1,187 @@
+# OpenAgent example configuration — full production-style setup.
+#
+# This is a sanitized version of the config powering the mixout-agent
+# deployment on an OVH VPS. It ships ~11 user MCPs (GitHub, Firebase, Google
+# Play, App Store Connect, ClickUp, Sentry, SSH, Google Workspace, Google
+# Analytics, etc.), the built-in Obsidian web UI, scheduled tasks, dream
+# mode, and auto-update — all driven by a single YAML file.
+#
+# Placeholders to replace before using:
+#   - every token / key / path prefixed with YOUR_ or /path/to/
+#   - Telegram chat IDs in system_prompt + scheduler prompts
+#   - the SSH command and host details in system_prompt
+#
+# Any value in the form ${VAR_NAME} is substituted from environment
+# variables at load time. Tokens can also be inlined for single-machine
+# setups — pick whichever suits your threat model.
+
+name: my-agent
+
+system_prompt: |
+  You are My Agent, a helpful AI assistant running on a VPS.
+  You help manage the My Project — a short description of what it does.
+
+  Google Play package: com.example.myapp
+  App Store app ID: YOUR_APPSTORE_APP_ID
+
+  Production SSH: ssh -i ~/.ssh/production_key ubuntu@YOUR_PROD_HOST
+  Laptop SSH: ssh -i ~/.ssh/laptop_key user@YOUR_TAILSCALE_IP
+
+  Git author: My Agent <myagent@example.com> (no Co-Authored-By needed)
+  Workspace: /home/ubuntu (Project-Client, Project-Server, Project-Website)
+  Always git pull before changes. Test before deploying. Never force-push main.
+
+  Knowledge base: your memory files are in /home/ubuntu/OpenAgent/memories/*.md —
+  use the mcpvault tools (search_notes, read_note, write_note) to search them
+  when you need information (contacts, credentials, procedures, etc.).
+
+model:
+  provider: claude-cli            # use Claude Pro/Max membership instead of API
+  model_id: claude-sonnet-4-6
+  permission_mode: bypass         # auto-approve tool calls (agent deployments)
+
+memory:
+  db_path: /home/ubuntu/OpenAgent/openagent.db
+  vault_path: /home/ubuntu/OpenAgent/memories
+
+mcp_defaults: true                # load the 7 bundled defaults (filesystem,
+                                  # editor, web-search, shell, computer-control,
+                                  # chrome-devtools, messaging)
+
+mcp:
+  # ── Source control & code ─────────────────────────────────────────────
+  - name: github
+    command: [github-mcp-server, stdio]
+    env:
+      GITHUB_PERSONAL_ACCESS_TOKEN: ${GITHUB_TOKEN}
+
+  - name: sentry
+    command: [npx, -y, "@sentry/mcp-server@latest"]
+    env:
+      SENTRY_ACCESS_TOKEN: ${SENTRY_TOKEN}
+      SENTRY_HOST: sentry.io
+
+  # ── Mobile / app stores ───────────────────────────────────────────────
+  - name: google-play
+    command:
+      - npx
+      - -y
+      - "@blocktopus/mcp-google-play"
+      - --api-key
+      - /home/ubuntu/.secrets/google-play-service-account.json
+
+  - name: appstore-connect
+    command: [npx, -y, "appstore-connect-mcp-server"]
+    env:
+      APP_STORE_CONNECT_KEY_ID: YOUR_KEY_ID
+      APP_STORE_CONNECT_ISSUER_ID: YOUR_ISSUER_ID
+      APP_STORE_CONNECT_P8_PATH: /home/ubuntu/.secrets/AuthKey_YOUR_KEY_ID.p8
+
+  # ── Firebase (official) — 44 tools: auth, crashlytics, remoteconfig,
+  # firestore, storage, dataconnect, apphosting, messaging, etc.
+  #
+  # Requires the `firebase-tools` npm package (`npm i -g firebase-tools`)
+  # and a `firebase.json` in --dir. Run `firebase login` once as the same
+  # user before enabling this MCP.
+  - name: firebase
+    command:
+      - firebase
+      - mcp
+      - --dir
+      - /home/ubuntu/firebase-config
+      - --only
+      - auth,crashlytics,remoteconfig,firestore
+
+  # ── Google Workspace (Gmail, Drive) — runs as a separate HTTP server ──
+  # Install with `uv tool install workspace-mcp` and run it under its own
+  # systemd unit (see docs/examples/workspace-mcp.service below).
+  - name: google-workspace
+    url: http://localhost:8000/mcp
+
+  # ── Google Analytics 4 — separate MCP from the Firebase one ───────────
+  # Install with `pipx install analytics-mcp`. The credentials JSON must be
+  # a service account with access to your GA4 property.
+  - name: google-analytics
+    command: [analytics-mcp]
+    env:
+      GOOGLE_APPLICATION_CREDENTIALS: /home/ubuntu/.secrets/google-analytics-sa.json
+      GOOGLE_PROJECT_ID: YOUR_GCP_PROJECT_ID
+
+  # ── Task tracking ─────────────────────────────────────────────────────
+  - name: clickup
+    command: [npx, -y, "@cavort-it-systems/clickup-mcp"]
+    env:
+      CLICKUP_API_KEY: ${CLICKUP_API_KEY}
+      CLICKUP_API_TOKEN: ${CLICKUP_API_KEY}
+      CLICKUP_TEAM_ID: YOUR_CLICKUP_TEAM_ID
+
+  # ── SMS / phone (Quo / OpenPhone) ─────────────────────────────────────
+  - name: quo
+    command: [node, /home/ubuntu/quo-mcp/dist/index.js]
+    env:
+      QUO_API_KEY: ${QUO_API_KEY}
+
+  # ── SSH MCP for driving remote servers from the agent ─────────────────
+  - name: ssh-remote
+    command: [npx, -y, "@idletoaster/ssh-mcp-server"]
+
+channels:
+  telegram:
+    token: ${TELEGRAM_BOT_TOKEN}
+    allowed_users:
+      - "YOUR_TELEGRAM_USER_ID"        # owner
+      - "ANOTHER_TELEGRAM_USER_ID"     # optional second user
+
+# Auxiliary services run alongside the agent in the same lifecycle.
+services:
+  obsidian_web:
+    enabled: true
+    port: 8200
+    username: admin
+    password: ${OBSIDIAN_PASSWORD}      # required
+    vault_path: /home/ubuntu/OpenAgent/memories
+    # NOTE: KasmVNC serves HTTPS with a self-signed cert. Accept the
+    # browser warning on first visit, or put Caddy in front for a real
+    # Let's Encrypt certificate.
+
+scheduler:
+  enabled: true
+  tasks:
+    - name: health-check
+      cron: "*/30 * * * *"
+      prompt: |
+        Run health checks on all services:
+        curl https://example.com (website), https://api.example.com/health,
+        and ssh to production to check `kubectl get pods -n myapp`.
+        If any service is down, send a Telegram alert to chat IDs
+        YOUR_TELEGRAM_USER_ID and ANOTHER_TELEGRAM_USER_ID via the
+        telegram_send_message tool.
+
+    - name: git-sync
+      cron: "*/15 * * * *"
+      prompt: |
+        Run git pull in /home/ubuntu/Project-Server,
+        /home/ubuntu/Project-Client, and /home/ubuntu/Project-Website.
+        Report only if there are errors.
+
+    - name: daily-costs-report
+      cron: "0 9 * * *"
+      prompt: |
+        Run python3 /home/ubuntu/costs.py to update the costs Google
+        Sheet. Then send a Telegram message to chat IDs
+        YOUR_TELEGRAM_USER_ID and ANOTHER_TELEGRAM_USER_ID saying:
+        "Daily Costs Report updated — link: <GOOGLE_SHEET_URL>".
+
+# Nightly maintenance: cleans /tmp, consolidates duplicate memory files,
+# runs a system health check, writes an audit log into the vault.
+dream_mode:
+  enabled: true
+  time: "3:00"
+
+# Auto-update: every 6 hours, pip upgrade from PyPI. mode=auto also exits
+# with code 75 so the OS service (systemd / launchd / Task Scheduler)
+# restarts with the new version.
+auto_update:
+  enabled: true
+  mode: auto
+  check_interval: "17 */6 * * *"
