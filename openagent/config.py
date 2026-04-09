@@ -9,6 +9,7 @@ from typing import Any
 
 import yaml
 
+from openagent.api.config_store import ConfigStore
 from openagent.runtime import (
     default_config_path,
     default_db_path,
@@ -75,16 +76,59 @@ def _normalize_runtime_config(config: dict) -> dict:
     return cfg
 
 
+def _rewrite_legacy_runtime_paths(config_path: Path, raw: dict, legacy_workspace: Path | None) -> dict:
+    if legacy_workspace is None or config_path != default_config_path():
+        return raw
+
+    runtime_db_path = str(default_db_path())
+    runtime_vault_path = str(default_vault_path())
+    legacy_db_path = str((legacy_workspace / "openagent.db").resolve())
+    legacy_vault_path = str((legacy_workspace / "memories").resolve())
+    changed = False
+
+    memory = dict(raw.get("memory", {}) or {})
+    db_path = memory.get("db_path")
+    if isinstance(db_path, str) and Path(db_path).expanduser().is_absolute():
+        if str(Path(db_path).expanduser().resolve()) == legacy_db_path:
+            memory["db_path"] = runtime_db_path
+            changed = True
+
+    vault_path = memory.get("vault_path")
+    if isinstance(vault_path, str) and Path(vault_path).expanduser().is_absolute():
+        if str(Path(vault_path).expanduser().resolve()) == legacy_vault_path:
+            memory["vault_path"] = runtime_vault_path
+            changed = True
+
+    if memory:
+        raw["memory"] = memory
+
+    services = dict(raw.get("services", {}) or {})
+    syncthing = dict(services.get("syncthing", {}) or {})
+    syncthing_vault_path = syncthing.get("vault_path")
+    if isinstance(syncthing_vault_path, str) and Path(syncthing_vault_path).expanduser().is_absolute():
+        if str(Path(syncthing_vault_path).expanduser().resolve()) == legacy_vault_path:
+            syncthing["vault_path"] = runtime_vault_path
+            services["syncthing"] = syncthing
+            raw["services"] = services
+            changed = True
+
+    if changed:
+        ConfigStore(config_path).write_data(raw)
+    return raw
+
+
 def load_config(path: str | Path | None = None) -> dict:
     """Load config from YAML file with runtime defaults applied."""
     ensure_runtime_dirs()
+    legacy_workspace = Path.cwd().resolve() if path is None else None
     if path is None:
-        migrate_legacy_workspace()
+        migrate_legacy_workspace(legacy_workspace)
     config_path = resolve_config_path(path)
     if not config_path.exists():
         return _normalize_runtime_config({})
     with open(config_path) as f:
         raw = yaml.safe_load(f) or {}
+    raw = _rewrite_legacy_runtime_paths(config_path, raw, legacy_workspace)
     return _normalize_runtime_config(_resolve_env_vars(raw))
 
 

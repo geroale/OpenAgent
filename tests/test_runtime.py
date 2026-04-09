@@ -69,6 +69,48 @@ class RuntimePathTests(unittest.TestCase):
                 Path(runtime_tmp).resolve() / "custom.db",
             )
 
+    @unittest.skipUnless(HAS_YAML, "PyYAML is not installed in this environment")
+    def test_load_config_rewrites_legacy_absolute_runtime_paths(self):
+        with tempfile.TemporaryDirectory() as runtime_tmp, tempfile.TemporaryDirectory() as workspace_tmp:
+            workspace = Path(workspace_tmp).resolve()
+            (workspace / "openagent.yaml").write_text(
+                "\n".join(
+                    [
+                        "name: migrated",
+                        "memory:",
+                        f"  db_path: {workspace / 'openagent.db'}",
+                        f"  vault_path: {workspace / 'memories'}",
+                        "services:",
+                        "  syncthing:",
+                        f"    vault_path: {workspace / 'memories'}",
+                    ]
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+            (workspace / "openagent.db").write_text("", encoding="utf-8")
+            (workspace / "memories").mkdir()
+            (workspace / "memories" / "note.md").write_text("# hello\n", encoding="utf-8")
+
+            with patch.dict(os.environ, {"OPENAGENT_HOME": runtime_tmp}, clear=False):
+                old_cwd = Path.cwd()
+                os.chdir(workspace)
+                try:
+                    config = load_config(None)
+                finally:
+                    os.chdir(old_cwd)
+
+            runtime_root = Path(runtime_tmp).resolve()
+            self.assertEqual(Path(config["memory"]["db_path"]), runtime_root / "openagent.db")
+            self.assertEqual(Path(config["memory"]["vault_path"]), runtime_root / "memories")
+            self.assertEqual(
+                Path(config["services"]["syncthing"]["vault_path"]),
+                runtime_root / "memories",
+            )
+            persisted = (runtime_root / "openagent.yaml").read_text(encoding="utf-8")
+            self.assertIn(str(runtime_root / "openagent.db"), persisted)
+            self.assertIn(str(runtime_root / "memories"), persisted)
+
 
 if __name__ == "__main__":
     unittest.main()
