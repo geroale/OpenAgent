@@ -141,6 +141,29 @@ These are handled automatically by OpenAgent — you just write `openagent.yaml`
 
 ---
 
+## System prompt
+
+OpenAgent injects a **framework-level system prompt** in front of your
+user-defined `system_prompt` on every model call. It codifies guidelines
+that apply to every deployment:
+
+- How to use the memory vault (mcpvault tools, wikilinks, tags).
+- Prefer MCP tools over `shell_exec` and ad-hoc scripts.
+- Act autonomously under `permission_mode: bypass`; only stop for
+  ambiguous or irreversible actions.
+- Be concise; lead with the answer, not the reasoning.
+
+Your `system_prompt` in `openagent.yaml` should therefore stay **short
+and project-specific** — just identity and a pointer to the memory
+vault. Everything else (package names, host names, credentials,
+procedures) belongs as `.md` notes inside the vault, where the agent
+will find them via `search_notes`.
+
+The framework prompt source lives at `openagent/prompts.py:FRAMEWORK_SYSTEM_PROMPT`
+if you want to read or tweak the wording.
+
+---
+
 ## Memory
 
 OpenAgent's long-term memory is a plain **Obsidian-compatible markdown vault**. The agent reads and writes `.md` files directly via the [`mcpvault`](https://www.npmjs.com/package/@bitbonsai/mcpvault) MCP — no custom index, no full-text engine, no proprietary format. The files on disk *are* the database.
