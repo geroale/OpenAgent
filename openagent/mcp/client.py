@@ -383,10 +383,14 @@ class MCPTools:
     async def close(self) -> None:
         """Close the connection."""
         if self._exit_stack:
-            await self._exit_stack.aclose()
-            self._exit_stack = None
-            self._session = None
-            self._tools = []
+            try:
+                await self._exit_stack.aclose()
+            except BaseException as e:
+                logger.warning(f"MCP '{self.name}': close error ignored: {e}")
+            finally:
+                self._exit_stack = None
+                self._session = None
+                self._tools = []
 
     @property
     def tools(self) -> list[dict[str, Any]]:
@@ -449,7 +453,7 @@ class MCPRegistry:
         for server in self._servers:
             try:
                 await server.close()
-            except Exception as e:
+            except BaseException as e:
                 logger.error(f"Failed to close MCP '{server.name}': {e}")
         self._tool_map.clear()
 

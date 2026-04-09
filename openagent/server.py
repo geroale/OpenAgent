@@ -291,7 +291,7 @@ class AgentServer:
         for ch in self.channels:
             try:
                 await ch.stop()
-            except Exception as e:
+            except BaseException as e:
                 logger.warning(f"Channel {ch.name} stop error: {e}")
 
         # 2. Cancel channel supervisor tasks
@@ -309,7 +309,7 @@ class AgentServer:
         if self._api_server is not None:
             try:
                 await self._api_server.stop()
-            except Exception as e:
+            except BaseException as e:
                 logger.warning(f"API stop error: {e}")
             self._api_server = None
 
@@ -317,14 +317,14 @@ class AgentServer:
         if self._scheduler is not None:
             try:
                 await self._scheduler.stop()
-            except Exception as e:
+            except BaseException as e:
                 logger.warning(f"Scheduler stop error: {e}")
             self._scheduler = None
 
         # 5. Agent
         try:
             await self.agent.shutdown()
-        except Exception as e:
+        except BaseException as e:
             logger.warning(f"Agent shutdown error: {e}")
 
         # 6. Aux services last

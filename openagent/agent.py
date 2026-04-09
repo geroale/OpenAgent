@@ -134,9 +134,16 @@ class Agent:
 
     async def shutdown(self) -> None:
         """Close all connections."""
-        await self._mcp.close_all()
+        try:
+            await self._mcp.close_all()
+        except BaseException as e:
+            logger.warning("Agent MCP shutdown error: %s", e)
+
         if self._db:
-            await self._db.close()
+            try:
+                await self._db.close()
+            except BaseException as e:
+                logger.warning("Agent DB shutdown error: %s", e)
         self._initialized = False
 
     async def run(
