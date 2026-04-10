@@ -1,13 +1,32 @@
+# Python
 __pycache__/
 *.py[cod]
 *.egg-info/
 dist/
 build/
 .eggs/
+.venv/
+venv/
+
+# Runtime
 *.db
 *.sqlite
 .env
 openagent.yaml
 !docs/examples/openagent.yaml
-.venv/
-venv/
+
+# Node / Electron (desktop app)
+node_modules/
+desktop/dist/
+desktop/out/
+*.asar
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
