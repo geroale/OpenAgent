@@ -2,7 +2,7 @@
  * REST API client for OpenAgent vault operations.
  */
 
-import type { VaultNote, GraphData } from '../../common/types';
+import type { VaultNote, GraphData, AgentConfig } from '../../common/types';
 
 let baseUrl = '';
 
@@ -66,4 +66,27 @@ export async function searchNotes(query: string): Promise<VaultNote[]> {
 
 export async function getGraph(): Promise<GraphData> {
   return get<GraphData>('/api/vault/graph');
+}
+
+// ── Config API ──
+
+export async function getConfig(): Promise<AgentConfig> {
+  return get<AgentConfig>('/api/config');
+}
+
+export async function updateConfig(config: AgentConfig): Promise<{ ok: boolean }> {
+  return put<{ ok: boolean }>('/api/config', config);
+}
+
+export async function updateConfigSection(
+  section: string,
+  data: any,
+): Promise<{ ok: boolean; restart_required: boolean }> {
+  const res = await fetch(`${baseUrl}/api/config/${section}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) throw new Error(`API ${res.status}: ${await res.text()}`);
+  return res.json();
 }

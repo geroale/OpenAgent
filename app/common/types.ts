@@ -60,7 +60,41 @@ export interface SavedAccount extends ConnectionConfig {
   createdAt: number;   // epoch ms
 }
 
-// ── REST API (future — vault, config, MCPs) ──
+// ── Config ──
+
+export interface ModelConfig {
+  provider: string;        // "claude-cli" | "claude-api" | "zhipu"
+  model_id: string;
+  permission_mode?: string; // "bypass" | "auto" | "default"
+  api_key?: string;
+  base_url?: string;
+}
+
+export interface McpServerConfig {
+  name: string;
+  command?: string[];
+  url?: string;
+  env?: Record<string, string>;
+  oauth?: boolean;
+  args?: string[];
+}
+
+export interface AgentConfig {
+  name?: string;
+  system_prompt?: string;
+  model?: ModelConfig;
+  mcp_defaults?: boolean;
+  mcp_disable?: string[];
+  mcp?: McpServerConfig[];
+  dream_mode?: { enabled: boolean; time: string };
+  auto_update?: { enabled: boolean; mode: string; check_interval: string };
+  channels?: Record<string, any>;
+  scheduler?: { enabled: boolean; tasks?: any[] };
+  services?: Record<string, any>;
+  memory?: { db_path?: string; vault_path?: string };
+}
+
+// ── REST API — vault, config ──
 
 export interface VaultNote {
   path: string;

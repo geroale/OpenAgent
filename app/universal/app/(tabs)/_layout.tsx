@@ -37,6 +37,20 @@ export default function TabsLayout() {
         }}
       />
       <Tabs.Screen
+        name="mcps"
+        options={{
+          title: 'MCPs',
+          tabBarIcon: ({ color }) => <Text style={{ fontSize: 18, color }}>🔌</Text>,
+        }}
+      />
+      <Tabs.Screen
+        name="model"
+        options={{
+          title: 'Model',
+          tabBarIcon: ({ color }) => <Text style={{ fontSize: 18, color }}>🤖</Text>,
+        }}
+      />
+      <Tabs.Screen
         name="settings"
         options={{
           title: 'Settings',
