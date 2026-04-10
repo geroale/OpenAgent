@@ -12,10 +12,10 @@ hero:
     - theme: brand
       text: Get It Now
       link: /downloads
-    - theme: brand
+    - theme: alt
       text: Read the Docs
       link: /guide/
-    - theme: brand
+    - theme: alt
       text: View on GitHub
       link: https://github.com/geroale/OpenAgent
 

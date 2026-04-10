@@ -22,10 +22,11 @@
   --vp-button-brand-hover-bg: linear-gradient(120deg, #e33a30 0%, #f0a334 100%);
   --vp-button-brand-hover-border: transparent;
   --vp-button-brand-hover-text: #ffffff;
-  --vp-button-alt-bg: #fff1e7;
-  --vp-button-alt-border: #f4d6c2;
-  --vp-button-alt-hover-bg: #ffe7d7;
-  --vp-button-alt-hover-border: #efc6ab;
+  --vp-button-alt-bg: #ffffff;
+  --vp-button-alt-border: #e0a88a;
+  --vp-button-alt-hover-bg: #fff5ee;
+  --vp-button-alt-hover-border: #d48560;
+  --vp-button-alt-text: #1f1712;
 }
 
 .dark {
