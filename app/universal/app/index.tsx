@@ -2,7 +2,7 @@
  * Login screen — saved accounts list + add new connection form.
  */
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { View, Text, TextInput, TouchableOpacity, ScrollView, StyleSheet } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useConnection } from '../stores/connection';
@@ -40,12 +40,13 @@ export default function LoginScreen() {
     }
   };
 
-  // Navigate on successful connection
-  if (isConnected && agentName) {
-    createSession();
-    router.replace('/(tabs)/chat');
-    return null;
-  }
+  // Navigate on successful connection (in useEffect to avoid setState during render)
+  useEffect(() => {
+    if (isConnected && agentName) {
+      createSession();
+      router.replace('/(tabs)/chat');
+    }
+  }, [isConnected, agentName]);
 
   const hasSaved = accounts.length > 0;
 
