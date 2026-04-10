@@ -19,13 +19,22 @@ openagent.yaml
 node_modules/
 app/desktop/dist/
 app/desktop/release/
+app/desktop/web-build/
+app/universal/dist/
 app/universal/web-build/
 app/universal/.expo/
 app/universal/android/
 app/universal/ios/
+*.asar
+
+# CLI build
+cli/dist/
+cli/build/
+cli/*.egg-info/
+
+# Docs build
 docs/.vitepress/cache/
 docs/.vitepress/dist/
-*.asar
 
 # IDE
 .idea/
