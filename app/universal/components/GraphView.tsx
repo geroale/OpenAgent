@@ -12,6 +12,7 @@
 import { useRef, useEffect, useCallback, useState } from 'react';
 import { View, StyleSheet, Platform } from 'react-native';
 import type { GraphData } from '../../common/types';
+import { colors, font } from '../../common/theme';
 
 interface Props {
   data: GraphData;
@@ -40,18 +41,11 @@ interface SimEdge {
   target: number;
 }
 
-// ── Tag → color palette (warm, muted) ──
-
-const TAG_COLORS = [
-  '#D97757', '#5B8FB9', '#7EB77F', '#C084B0', '#D4A843',
-  '#6C9BA8', '#B07D62', '#8B85C1', '#72B89E', '#CF7C7C',
-];
-
 function tagColor(tags: string[]): string {
-  if (!tags.length) return '#AAAAAA';
+  if (!tags.length) return colors.textMuted;
   let hash = 0;
   for (const c of tags[0]) hash = ((hash << 5) - hash + c.charCodeAt(0)) | 0;
-  return TAG_COLORS[Math.abs(hash) % TAG_COLORS.length];
+  return colors.graph[Math.abs(hash) % colors.graph.length];
 }
 
 // ── Force simulation (runs in requestAnimationFrame) ──
@@ -214,7 +208,7 @@ export default function GraphView({ data, onSelectNode, width, height }: Props) 
       }
 
       // Clear
-      ctx.fillStyle = '#FAFAFA';
+      ctx.fillStyle = colors.bg;
       ctx.fillRect(0, 0, W, H);
 
       // Transform to camera
@@ -224,7 +218,7 @@ export default function GraphView({ data, onSelectNode, width, height }: Props) 
       ctx.translate(cam.x, cam.y);
 
       // Edges
-      ctx.strokeStyle = '#D8D8D8';
+      ctx.strokeStyle = colors.border;
       ctx.lineWidth = 1 / cam.zoom;
       ctx.beginPath();
       for (const e of edges) {
@@ -252,8 +246,8 @@ export default function GraphView({ data, onSelectNode, width, height }: Props) 
       // Labels (only when zoomed in enough or hovered)
       const labelThreshold = 0.7;
       if (cam.zoom > labelThreshold || hoverRef.current >= 0) {
-        ctx.fillStyle = '#333';
-        ctx.font = `${11 / cam.zoom}px -apple-system, BlinkMacSystemFont, sans-serif`;
+        ctx.fillStyle = colors.text;
+        ctx.font = `${11 / cam.zoom}px ${font.sans}`;
         ctx.textAlign = 'center';
         for (let i = 0; i < nodes.length; i++) {
           const n = nodes[i];
@@ -361,6 +355,6 @@ export default function GraphView({ data, onSelectNode, width, height }: Props) 
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#FAFAFA' },
-  fallback: { flex: 1, backgroundColor: '#FAFAFA' },
+  container: { flex: 1, backgroundColor: colors.bg },
+  fallback: { flex: 1, backgroundColor: colors.bg },
 });

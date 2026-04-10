@@ -1,13 +1,13 @@
 /**
  * Memory screen — master-detail layout:
  *   Sidebar (always visible): file tree + search
- *   Main area: graph view (default) or editor (when note selected)
+ *   Main area: graph view (default) or note viewer/editor (when selected)
  *
- * The sidebar never disappears — clicking a note swaps the main area
- * from graph to editor. "← Back to graph" returns to graph view.
+ * Note view defaults to formatted markdown. Toggle button switches to raw
+ * text editor. "← Graph" returns to graph view.
  */
 
-import { useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, ScrollView, StyleSheet, Platform,
 } from 'react-native';
@@ -15,6 +15,8 @@ import { useConnection } from '../../stores/connection';
 import { useVault } from '../../stores/vault';
 import { setBaseUrl } from '../../services/api';
 import GraphView from '../../components/GraphView';
+import Markdown from '../../components/Markdown';
+import { colors } from '../../../common/theme';
 
 export default function MemoryScreen() {
   const config = useConnection((s) => s.config);
@@ -24,6 +26,8 @@ export default function MemoryScreen() {
     loadNotes, loadGraph, selectNote, updateEditor, saveNote, search, clearSearch,
   } = useVault();
 
+  const [rawMode, setRawMode] = useState(false);
+
   useEffect(() => {
     if (config) {
       setBaseUrl(config.host, config.port);
@@ -31,6 +35,9 @@ export default function MemoryScreen() {
       loadGraph();
     }
   }, [config]);
+
+  // Reset to preview mode when switching notes
+  useEffect(() => { setRawMode(false); }, [selectedPath]);
 
   const handleSave = useCallback(() => {
     saveNote().then(() => loadNotes());
@@ -69,14 +76,14 @@ export default function MemoryScreen() {
 
   return (
     <View style={styles.container}>
-      {/* ── Sidebar: always visible ── */}
+      {/* ── Sidebar ── */}
       <View style={styles.sidebar}>
         <TextInput
           style={styles.searchInput}
           value={searchQuery}
           onChangeText={(q) => (q ? search(q) : clearSearch())}
           placeholder="Search notes..."
-          placeholderTextColor="#999"
+          placeholderTextColor={colors.textMuted}
         />
 
         <ScrollView style={styles.fileTree}>
@@ -88,17 +95,11 @@ export default function MemoryScreen() {
               {folderNotes.map((n) => (
                 <TouchableOpacity
                   key={n.path}
-                  style={[
-                    styles.fileItem,
-                    n.path === selectedPath && styles.fileItemActive,
-                  ]}
+                  style={[styles.fileItem, n.path === selectedPath && styles.fileItemActive]}
                   onPress={() => openNote(n.path)}
                 >
                   <Text
-                    style={[
-                      styles.fileName,
-                      n.path === selectedPath && styles.fileNameActive,
-                    ]}
+                    style={[styles.fileName, n.path === selectedPath && styles.fileNameActive]}
                     numberOfLines={1}
                   >
                     {n.title || n.path.split('/').pop()?.replace('.md', '')}
@@ -124,11 +125,11 @@ export default function MemoryScreen() {
         </View>
       </View>
 
-      {/* ── Main area: graph OR editor ── */}
+      {/* ── Main area ── */}
       <View style={styles.mainArea}>
         {selectedPath ? (
-          /* Editor mode */
           <View style={styles.editorContainer}>
+            {/* Header bar */}
             <View style={styles.editorHeader}>
               <TouchableOpacity onPress={handleClose} style={styles.backBtn}>
                 <Text style={styles.backBtnText}>← Graph</Text>
@@ -137,46 +138,72 @@ export default function MemoryScreen() {
                 {selectedNote?.title || selectedPath.split('/').pop()?.replace('.md', '')}
               </Text>
               <View style={styles.editorActions}>
-                {editorDirty && <Text style={styles.unsavedBadge}>unsaved</Text>}
+                {/* Preview / Raw toggle */}
                 <TouchableOpacity
-                  style={[styles.saveBtn, !editorDirty && styles.saveBtnDisabled]}
-                  onPress={handleSave}
-                  disabled={!editorDirty}
+                  style={styles.toggleBtn}
+                  onPress={() => setRawMode(!rawMode)}
                 >
-                  <Text style={styles.saveBtnText}>Save</Text>
+                  <Text style={styles.toggleBtnText}>
+                    {rawMode ? 'Preview' : 'Edit'}
+                  </Text>
                 </TouchableOpacity>
+                {rawMode && editorDirty && (
+                  <Text style={styles.unsavedBadge}>unsaved</Text>
+                )}
+                {rawMode && (
+                  <TouchableOpacity
+                    style={[styles.saveBtn, !editorDirty && styles.saveBtnDisabled]}
+                    onPress={handleSave}
+                    disabled={!editorDirty}
+                  >
+                    <Text style={styles.saveBtnText}>Save</Text>
+                  </TouchableOpacity>
+                )}
               </View>
             </View>
-            {Platform.OS === 'web' ? (
-              <textarea
-                value={editorContent}
-                onChange={(e: any) => updateEditor(e.target.value)}
-                style={{
-                  flex: 1,
-                  width: '100%',
-                  height: '100%',
-                  fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
-                  fontSize: 13,
-                  lineHeight: '1.7',
-                  padding: 24,
-                  border: 'none',
-                  outline: 'none',
-                  resize: 'none',
-                  backgroundColor: '#FFFFFF',
-                  color: '#1a1a1a',
-                  boxSizing: 'border-box',
-                } as any}
-                spellCheck={false}
-              />
-            ) : (
-              <ScrollView style={{ flex: 1, backgroundColor: '#FFFFFF' }}>
-                <TextInput
-                  style={styles.editorInput}
+
+            {/* Content: preview or raw editor */}
+            {rawMode ? (
+              /* Raw text editor */
+              Platform.OS === 'web' ? (
+                <textarea
                   value={editorContent}
-                  onChangeText={updateEditor}
-                  multiline
-                  textAlignVertical="top"
+                  onChange={(e: any) => updateEditor(e.target.value)}
+                  style={{
+                    flex: 1,
+                    width: '100%',
+                    height: '100%',
+                    fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
+                    fontSize: 13,
+                    lineHeight: '1.7',
+                    padding: 24,
+                    border: 'none',
+                    outline: 'none',
+                    resize: 'none',
+                    backgroundColor: colors.surface,
+                    color: colors.text,
+                    boxSizing: 'border-box',
+                  } as any}
+                  spellCheck={false}
                 />
+              ) : (
+                <ScrollView style={{ flex: 1, backgroundColor: colors.surface }}>
+                  <TextInput
+                    style={styles.editorInput}
+                    value={editorContent}
+                    onChangeText={updateEditor}
+                    multiline
+                    textAlignVertical="top"
+                  />
+                </ScrollView>
+              )
+            ) : (
+              /* Formatted markdown preview */
+              <ScrollView
+                style={styles.previewScroll}
+                contentContainerStyle={styles.previewContent}
+              >
+                <Markdown text={editorContent} />
               </ScrollView>
             )}
           </View>
@@ -198,42 +225,37 @@ export default function MemoryScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, flexDirection: 'row', backgroundColor: '#FAFAFA' },
+  container: { flex: 1, flexDirection: 'row', backgroundColor: colors.bg },
 
   // Sidebar
   sidebar: {
     width: 220,
-    backgroundColor: '#F5F5F5',
+    backgroundColor: colors.sidebar,
     borderRightWidth: 1,
-    borderRightColor: '#EBEBEB',
+    borderRightColor: colors.border,
     flexDirection: 'column',
   },
   searchInput: {
-    margin: 10,
-    padding: 8,
-    paddingHorizontal: 12,
-    backgroundColor: '#FFFFFF',
-    borderRadius: 6,
-    borderWidth: 1,
-    borderColor: '#E8E8E8',
-    fontSize: 12,
-    color: '#1a1a1a',
+    margin: 10, padding: 8, paddingHorizontal: 12,
+    backgroundColor: colors.surface, borderRadius: 6,
+    borderWidth: 1, borderColor: '#E8E8E8',
+    fontSize: 12, color: colors.text,
   },
   fileTree: { flex: 1, paddingHorizontal: 6 },
   folderName: {
-    fontSize: 11, fontWeight: '600', color: '#999',
+    fontSize: 11, fontWeight: '600', color: colors.textMuted,
     paddingHorizontal: 10, paddingTop: 12, paddingBottom: 4,
     textTransform: 'uppercase', letterSpacing: 0.3,
   },
   fileItem: { paddingVertical: 6, paddingHorizontal: 10, borderRadius: 6, marginVertical: 1 },
-  fileItemActive: { backgroundColor: '#EBEBEB' },
+  fileItemActive: { backgroundColor: colors.border },
   fileName: { fontSize: 13, color: '#333' },
-  fileNameActive: { color: '#D97757', fontWeight: '500' },
+  fileNameActive: { color: colors.primary, fontWeight: '500' },
   fileTags: { fontSize: 10, color: '#AAA', marginTop: 1 },
-  noteCount: { padding: 10, borderTopWidth: 1, borderTopColor: '#EBEBEB' },
-  noteCountText: { fontSize: 11, color: '#999', textAlign: 'center' },
+  noteCount: { padding: 10, borderTopWidth: 1, borderTopColor: colors.border },
+  noteCountText: { fontSize: 11, color: colors.textMuted, textAlign: 'center' },
 
-  // Main area
+  // Main
   mainArea: { flex: 1 },
   graphEmpty: { flex: 1, justifyContent: 'center', alignItems: 'center' },
 
@@ -241,21 +263,32 @@ const styles = StyleSheet.create({
   editorContainer: { flex: 1, flexDirection: 'column' },
   editorHeader: {
     flexDirection: 'row', alignItems: 'center',
-    paddingHorizontal: 16, paddingVertical: 10,
-    borderBottomWidth: 1, borderBottomColor: '#EBEBEB',
-    backgroundColor: '#FAFAFA',
+    paddingHorizontal: 16, paddingVertical: 8,
+    borderBottomWidth: 1, borderBottomColor: colors.border,
+    backgroundColor: colors.bg,
   },
   backBtn: { paddingVertical: 4, paddingHorizontal: 8, marginRight: 12 },
-  backBtnText: { fontSize: 13, color: '#D97757', fontWeight: '500' },
-  editorTitle: { fontSize: 14, fontWeight: '600', color: '#1a1a1a', flex: 1 },
+  backBtnText: { fontSize: 13, color: colors.primary, fontWeight: '500' },
+  editorTitle: { fontSize: 14, fontWeight: '600', color: colors.text, flex: 1 },
   editorActions: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  toggleBtn: {
+    paddingHorizontal: 10, paddingVertical: 4,
+    borderRadius: 6, borderWidth: 1, borderColor: colors.border,
+    backgroundColor: colors.surface,
+  },
+  toggleBtnText: { fontSize: 12, color: colors.textSecondary, fontWeight: '500' },
   unsavedBadge: {
-    fontSize: 10, color: '#D97757', backgroundColor: '#FFF3EE',
+    fontSize: 10, color: colors.primary, backgroundColor: colors.primaryLight,
     paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4, overflow: 'hidden',
   },
-  saveBtn: { backgroundColor: '#D97757', paddingHorizontal: 14, paddingVertical: 5, borderRadius: 6 },
+  saveBtn: { backgroundColor: colors.primary, paddingHorizontal: 14, paddingVertical: 5, borderRadius: 6 },
   saveBtnDisabled: { opacity: 0.3 },
-  saveBtnText: { color: '#FFFFFF', fontSize: 12, fontWeight: '600' },
-  editorInput: { padding: 24, fontFamily: 'monospace', fontSize: 13, color: '#1a1a1a', lineHeight: 22 },
-  emptyText: { color: '#999', fontSize: 13, padding: 16 },
+  saveBtnText: { color: colors.textInverse, fontSize: 12, fontWeight: '600' },
+  editorInput: { padding: 24, fontFamily: 'monospace', fontSize: 13, color: colors.text, lineHeight: 22 },
+
+  // Preview
+  previewScroll: { flex: 1, backgroundColor: colors.surface },
+  previewContent: { padding: 24 },
+
+  emptyText: { color: colors.textMuted, fontSize: 13, padding: 16 },
 });
