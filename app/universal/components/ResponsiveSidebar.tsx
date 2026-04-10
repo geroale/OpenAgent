@@ -9,7 +9,7 @@
  */
 
 import { useCallback, useEffect, useRef } from 'react';
-import { View, StyleSheet } from 'react-native';
+import { View, StyleSheet, Platform } from 'react-native';
 import {
   createDrawerNavigator,
   DrawerContentComponentProps,
@@ -43,6 +43,20 @@ export default function ResponsiveSidebar({ sidebar, children }: Props) {
     () => <DrawerToggleListener>{children}</DrawerToggleListener>,
     [children],
   );
+
+  // Inject CSS override on web — the drawer library applies inline
+  // border-radius that can't be overridden via React Native style props.
+  useEffect(() => {
+    if (Platform.OS !== 'web') return;
+    const style = document.createElement('style');
+    style.textContent = `
+      [style*="border-radius: 0px 16px"] {
+        border-radius: 0px !important;
+      }
+    `;
+    document.head.appendChild(style);
+    return () => { document.head.removeChild(style); };
+  }, []);
 
   return (
     <NavigationIndependentTree>
