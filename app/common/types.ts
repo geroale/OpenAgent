@@ -55,6 +55,11 @@ export interface ConnectionConfig {
   isLocal: boolean;
 }
 
+export interface SavedAccount extends ConnectionConfig {
+  id: string;          // unique identifier
+  createdAt: number;   // epoch ms
+}
+
 // ── REST API (future — vault, config, MCPs) ──
 
 export interface VaultNote {

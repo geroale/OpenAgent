@@ -3,11 +3,19 @@ import { useEffect } from 'react';
 import { View, StyleSheet, Platform } from 'react-native';
 import { useConnection } from '../stores/connection';
 import { useChat } from '../stores/chat';
+import Header from '../components/Header';
 
 export default function RootLayout() {
   const ws = useConnection((s) => s.ws);
   const handleServerMessage = useChat((s) => s.handleServerMessage);
+  const loadAccounts = useConnection((s) => s.loadAccounts);
 
+  // Load saved accounts on app start
+  useEffect(() => {
+    loadAccounts();
+  }, []);
+
+  // Wire WS messages into chat store
   useEffect(() => {
     if (!ws) return;
     const unsub = ws.onMessage((msg) => {
@@ -20,14 +28,7 @@ export default function RootLayout() {
 
   return (
     <View style={styles.root}>
-      {/* Drag area for Electron titlebar (macOS/Windows/Linux) */}
-      {Platform.OS === 'web' && (
-        <View
-          style={styles.dragBar}
-          // @ts-ignore — web-only CSS property
-          pointerEvents="none"
-        />
-      )}
+      {Platform.OS === 'web' && <Header />}
       <View style={styles.content}>
         <Slot />
       </View>
@@ -40,19 +41,7 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#FAFAFA',
   },
-  dragBar: {
-    height: 38,
-    // @ts-ignore — web-only
-    WebkitAppRegion: 'drag',
-    backgroundColor: '#F5F5F5',
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    zIndex: 100,
-  },
   content: {
     flex: 1,
-    paddingTop: Platform.OS === 'web' ? 38 : 0,
   },
 });

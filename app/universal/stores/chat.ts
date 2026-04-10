@@ -17,6 +17,7 @@ interface ChatState {
   removeSession: (id: string) => void;
   addUserMessage: (sessionId: string, text: string) => void;
   handleServerMessage: (msg: ServerMessage) => void;
+  clearAll: () => void;
 }
 
 export const useChat = create<ChatState>((set, get) => ({
@@ -114,4 +115,6 @@ export const useChat = create<ChatState>((set, get) => ({
 
     return {};
   }),
+
+  clearAll: () => set({ sessions: [], activeSessionId: null }),
 }));
