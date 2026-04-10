@@ -55,6 +55,7 @@ export default function ResponsiveSidebar({ sidebar, children }: Props) {
             backgroundColor: '#F5F5F5',
             borderRightWidth: 1,
             borderRightColor: '#EBEBEB',
+            borderRadius: 0,
           },
           overlayColor: 'rgba(0,0,0,0.3)',
           swipeEnabled: !isWide,
