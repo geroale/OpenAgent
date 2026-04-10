@@ -1,3 +1,4 @@
+import { colors } from '../../theme';
 /**
  * Tasks screen — view and manage scheduled cron tasks.
  */
@@ -96,7 +97,7 @@ export default function TasksScreen() {
         <Switch
           value={schedulerEnabled}
           onValueChange={toggleScheduler}
-          trackColor={{ false: '#DDD', true: '#D97757' }}
+          trackColor={{ false: '#DDD', true: colors.primary }}
           thumbColor="#FFF"
         />
       </View>
@@ -215,7 +216,7 @@ const styles = StyleSheet.create({
   taskRowBorder: { borderTopWidth: 1, borderTopColor: '#F0F0F0' },
   taskInfo: { flex: 1 },
   taskName: { fontSize: 14, fontWeight: '600', color: '#1a1a1a' },
-  taskCron: { fontSize: 12, color: '#D97757', fontFamily: 'monospace', marginTop: 2 },
+  taskCron: { fontSize: 12, color: colors.primary, fontFamily: 'monospace', marginTop: 2 },
   taskPrompt: { fontSize: 12, color: '#888', marginTop: 4, lineHeight: 18 },
   taskActions: { flexDirection: 'row', gap: 4, marginLeft: 8 },
   editBtn: { padding: 6 },
@@ -223,7 +224,7 @@ const styles = StyleSheet.create({
   removeBtn: { padding: 6 },
   removeBtnText: { fontSize: 12, color: '#CCC' },
   addBtn: { padding: 12, borderTopWidth: 1, borderTopColor: '#F0F0F0' },
-  addBtnText: { fontSize: 13, color: '#D97757', fontWeight: '500' },
+  addBtnText: { fontSize: 13, color: colors.primary, fontWeight: '500' },
   addForm: { padding: 12, borderTopWidth: 1, borderTopColor: '#F0F0F0' },
   formTitle: { fontSize: 14, fontWeight: '600', color: '#1a1a1a', marginBottom: 8 },
   input: {
@@ -233,7 +234,7 @@ const styles = StyleSheet.create({
   formActions: { flexDirection: 'row', justifyContent: 'flex-end', gap: 8, marginTop: 4 },
   cancelBtn: { padding: 8 },
   cancelBtnText: { color: '#999', fontSize: 13 },
-  saveBtn: { backgroundColor: '#D97757', paddingHorizontal: 14, paddingVertical: 7, borderRadius: 6 },
+  saveBtn: { backgroundColor: colors.primary, paddingHorizontal: 14, paddingVertical: 7, borderRadius: 6 },
   saveBtnText: { color: '#FFF', fontSize: 13, fontWeight: '600' },
   savedMsg: { marginTop: 12, fontSize: 13, color: '#4CAF50', textAlign: 'center' },
 });

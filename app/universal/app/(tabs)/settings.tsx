@@ -1,3 +1,4 @@
+import { colors } from '../../theme';
 /**
  * Settings screen — agent identity, dream mode, auto-update, connection.
  */
@@ -116,7 +117,7 @@ export default function SettingsScreen() {
           <Switch
             value={dreamEnabled}
             onValueChange={setDreamEnabled}
-            trackColor={{ false: '#DDD', true: '#D97757' }}
+            trackColor={{ false: '#DDD', true: colors.primary }}
             thumbColor="#FFF"
           />
         </View>
@@ -146,7 +147,7 @@ export default function SettingsScreen() {
           <Switch
             value={autoUpdateEnabled}
             onValueChange={setAutoUpdateEnabled}
-            trackColor={{ false: '#DDD', true: '#D97757' }}
+            trackColor={{ false: '#DDD', true: colors.primary }}
             thumbColor="#FFF"
           />
         </View>
@@ -228,10 +229,10 @@ const styles = StyleSheet.create({
   toggleLabel: { fontSize: 14, color: '#1a1a1a' },
   segmented: { flexDirection: 'row', borderRadius: 8, overflow: 'hidden', borderWidth: 1, borderColor: '#E8E8E8' },
   segment: { flex: 1, paddingVertical: 8, alignItems: 'center', backgroundColor: '#F5F5F5' },
-  segmentActive: { backgroundColor: '#D97757' },
+  segmentActive: { backgroundColor: colors.primary },
   segmentText: { fontSize: 12, color: '#666', fontWeight: '500' },
   segmentTextActive: { color: '#FFF' },
-  saveBtn: { backgroundColor: '#D97757', borderRadius: 8, padding: 12, alignItems: 'center', marginTop: 16 },
+  saveBtn: { backgroundColor: colors.primary, borderRadius: 8, padding: 12, alignItems: 'center', marginTop: 16 },
   saveBtnText: { color: '#FFF', fontSize: 14, fontWeight: '600' },
   row: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: '#F5F5F5' },
   rowLabel: { fontSize: 14, color: '#666' },

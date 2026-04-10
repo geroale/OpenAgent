@@ -1,3 +1,4 @@
+import { colors } from '../../theme';
 /**
  * MCPs screen — view default MCPs (read-only) and manage custom MCPs.
  */
@@ -86,7 +87,7 @@ export default function McpsScreen() {
             <Switch
               value={!disabled.includes(mcp.name)}
               onValueChange={() => toggleDefault(mcp.name)}
-              trackColor={{ false: '#DDD', true: '#D97757' }}
+              trackColor={{ false: '#DDD', true: colors.primary }}
               thumbColor="#FFF"
             />
           </View>
@@ -186,7 +187,7 @@ const styles = StyleSheet.create({
   removeBtnText: { fontSize: 12, color: '#CCC' },
   emptyText: { padding: 16, fontSize: 13, color: '#999', textAlign: 'center' },
   addBtn: { padding: 12, borderTopWidth: 1, borderTopColor: '#F0F0F0' },
-  addBtnText: { fontSize: 13, color: '#D97757', fontWeight: '500' },
+  addBtnText: { fontSize: 13, color: colors.primary, fontWeight: '500' },
   addForm: { padding: 12, borderTopWidth: 1, borderTopColor: '#F0F0F0' },
   input: {
     backgroundColor: '#F5F5F5', borderRadius: 8, borderWidth: 1, borderColor: '#E8E8E8',
@@ -195,6 +196,6 @@ const styles = StyleSheet.create({
   addFormActions: { flexDirection: 'row', justifyContent: 'flex-end', gap: 8, marginTop: 4 },
   cancelBtn: { padding: 8 },
   cancelBtnText: { color: '#999', fontSize: 13 },
-  saveBtn: { backgroundColor: '#D97757', paddingHorizontal: 14, paddingVertical: 7, borderRadius: 6 },
+  saveBtn: { backgroundColor: colors.primary, paddingHorizontal: 14, paddingVertical: 7, borderRadius: 6 },
   saveBtnText: { color: '#FFF', fontSize: 13, fontWeight: '600' },
 });

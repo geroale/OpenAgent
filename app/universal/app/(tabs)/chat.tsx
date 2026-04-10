@@ -1,3 +1,4 @@
+import { colors } from '../../theme';
 /**
  * Chat screen — ChatGPT-style interface with multi-session support.
  * Responsive: fixed sidebar on tablet+, drawer on mobile.
@@ -111,7 +112,7 @@ export default function ChatScreen() {
                   value={input}
                   onChange={(e: any) => setInput(e.target.value)}
                   onKeyDown={handleKeyDown}
-                  placeholder="Send a message... (Shift+Enter for newline)"
+                  placeholder="Send a message..."
                   rows={1}
                   style={{
                     flex: 1,
@@ -158,7 +159,7 @@ export default function ChatScreen() {
 const styles = StyleSheet.create({
   sidebarInner: { flex: 1, padding: 16 },
   newChatBtn: {
-    backgroundColor: '#D97757', borderRadius: 8, padding: 10,
+    backgroundColor: colors.primary, borderRadius: 8, padding: 10,
     alignItems: 'center', marginBottom: 16,
   },
   newChatText: { color: '#FFFFFF', fontWeight: '600', fontSize: 13 },
@@ -169,13 +170,13 @@ const styles = StyleSheet.create({
   },
   sessionActive: { backgroundColor: '#EBEBEB' },
   sessionTitle: { color: '#444', flex: 1, fontSize: 13 },
-  processingDot: { color: '#D97757', fontSize: 10, marginLeft: 6 },
+  processingDot: { color: colors.primary, fontSize: 10, marginLeft: 6 },
 
   chatArea: { flex: 1, flexDirection: 'column', backgroundColor: '#FAFAFA' },
   messages: { flex: 1 },
   messagesContent: { padding: 24, paddingBottom: 8 },
   bubble: { maxWidth: '75%', borderRadius: 12, padding: 14, marginBottom: 10 },
-  userBubble: { backgroundColor: '#D97757', alignSelf: 'flex-end' },
+  userBubble: { backgroundColor: colors.primary, alignSelf: 'flex-end' },
   assistantBubble: {
     backgroundColor: '#FFFFFF', alignSelf: 'flex-start',
     borderWidth: 1, borderColor: '#EBEBEB',
@@ -196,7 +197,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16, paddingVertical: 10, color: '#1a1a1a', fontSize: 14, maxHeight: 120,
   },
   sendBtn: {
-    backgroundColor: '#D97757', width: 36, height: 36, borderRadius: 18,
+    backgroundColor: colors.primary, width: 36, height: 36, borderRadius: 18,
     alignItems: 'center', justifyContent: 'center', marginLeft: 8,
   },
   sendBtnDisabled: { opacity: 0.3 },

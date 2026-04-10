@@ -1,52 +1,56 @@
 /**
  * Shared color palette and design tokens.
- * All components import from here — single source of truth.
+ * Primary gradient: #ef4136 (red) → #fbb040 (amber/orange).
  */
 
 export const colors = {
-  // Brand
-  primary: '#D97757',        // warm terracotta (accent, buttons, links)
-  primaryLight: '#FFF3EE',   // tinted background
-  primaryMuted: '#E8A48C',   // softer variant
+  // Brand — red-to-amber gradient endpoints
+  primary: '#ef4136',        // main accent (buttons, active states)
+  primaryEnd: '#fbb040',     // gradient end (amber)
+  primaryLight: '#FEF0E6',   // tinted background
+  primaryMuted: '#F4856E',   // softer red
 
   // Neutrals
-  bg: '#FAFAFA',             // page background
-  surface: '#FFFFFF',        // cards, panels, bubbles
-  sidebar: '#F5F5F5',        // sidebar, header background
-  border: '#EBEBEB',         // subtle borders
-  borderLight: '#F0F0F0',    // very light separators
-  inputBg: '#F5F5F5',        // input fields
+  bg: '#FAFAFA',
+  surface: '#FFFFFF',
+  sidebar: '#F5F5F5',
+  border: '#EBEBEB',
+  borderLight: '#F0F0F0',
+  inputBg: '#F5F5F5',
 
   // Text
-  text: '#1a1a1a',           // primary text
-  textSecondary: '#666666',  // labels, descriptions
-  textMuted: '#999999',      // placeholders, hints
-  textInverse: '#FFFFFF',    // text on primary bg
+  text: '#1a1a1a',
+  textSecondary: '#666666',
+  textMuted: '#999999',
+  textInverse: '#FFFFFF',
 
   // Status
-  success: '#4CAF50',        // connected, online
-  error: '#D94F4F',          // errors, destructive
-  warning: '#E5A100',        // warnings
+  success: '#4CAF50',
+  error: '#D94F4F',
+  warning: '#E5A100',
 
-  // Graph node palette (harmonized with primary)
+  // Graph node palette (red → amber gradient steps)
   graph: [
-    '#D97757',   // primary
-    '#C47A5A',   // burnt sienna
-    '#B8856C',   // tan
-    '#A68B7B',   // warm gray
-    '#D4976E',   // peach
-    '#C2694D',   // rust
-    '#DBA07A',   // sand
-    '#BF7856',   // copper
-    '#E8B796',   // light coral
-    '#A0614A',   // deep terracotta
+    '#ef4136',  // red
+    '#f15a3a',  // red-orange
+    '#f3733e',  // orange-red
+    '#f58b42',  // orange
+    '#f7a346',  // amber-orange
+    '#fbb040',  // amber
+    '#e84e3c',  // dark red
+    '#f06940',  // warm orange
+    '#f89744',  // golden
+    '#d63a30',  // deep red
   ],
 
   // Code blocks
   codeBg: '#1E1E1E',
   codeText: '#D4D4D4',
-  codeKeyword: '#C7402D',
+  codeKeyword: '#ef4136',
 } as const;
+
+/** CSS gradient string for web backgrounds */
+export const primaryGradient = 'linear-gradient(135deg, #ef4136 0%, #fbb040 100%)';
 
 export const spacing = {
   xs: 4,

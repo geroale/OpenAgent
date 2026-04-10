@@ -2,6 +2,7 @@
  * Login screen — saved accounts list + add new connection form.
  */
 
+import { colors } from '../theme';
 import { useState, useEffect } from 'react';
 import { View, Text, TextInput, TouchableOpacity, ScrollView, StyleSheet } from 'react-native';
 import { useRouter } from 'expo-router';
@@ -204,7 +205,7 @@ const styles = StyleSheet.create({
     marginTop: 1,
   },
   connectBtn: {
-    backgroundColor: '#D97757',
+    backgroundColor: colors.primary,
     paddingHorizontal: 14,
     paddingVertical: 6,
     borderRadius: 6,
@@ -249,7 +250,7 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   button: {
-    backgroundColor: '#D97757',
+    backgroundColor: colors.primary,
     borderRadius: 8,
     padding: 13,
     marginTop: 4,

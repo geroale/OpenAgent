@@ -1,3 +1,4 @@
+import { colors } from '../../theme';
 /**
  * Model screen — view and edit the LLM provider configuration.
  */
@@ -161,11 +162,11 @@ const styles = StyleSheet.create({
   },
   segmented: { flexDirection: 'row', borderRadius: 8, overflow: 'hidden', borderWidth: 1, borderColor: '#E8E8E8' },
   segment: { flex: 1, paddingVertical: 8, alignItems: 'center', backgroundColor: '#F5F5F5' },
-  segmentActive: { backgroundColor: '#D97757' },
+  segmentActive: { backgroundColor: colors.primary },
   segmentText: { fontSize: 12, color: '#666', fontWeight: '500' },
   segmentTextActive: { color: '#FFF' },
   saveBtn: {
-    backgroundColor: '#D97757', borderRadius: 8, padding: 12,
+    backgroundColor: colors.primary, borderRadius: 8, padding: 12,
     alignItems: 'center', marginTop: 20,
   },
   saveBtnText: { color: '#FFF', fontSize: 14, fontWeight: '600' },

@@ -1,3 +1,4 @@
+import { colors } from '../theme';
 /**
  * App header with drag area + account switcher.
  *
@@ -245,7 +246,7 @@ const styles = StyleSheet.create({
   },
   radioBtn: {
     fontSize: 10,
-    color: '#D97757',
+    color: colors.primary,
     marginRight: 8,
     width: 14,
   },
@@ -282,7 +283,7 @@ const styles = StyleSheet.create({
   },
   dropdownAddText: {
     fontSize: 12,
-    color: '#D97757',
+    color: colors.primary,
     fontWeight: '500',
   },
 });

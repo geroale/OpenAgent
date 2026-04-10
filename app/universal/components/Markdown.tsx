@@ -1,3 +1,4 @@
+import { colors } from '../theme';
 /**
  * Lightweight markdown renderer for chat bubbles.
  * Handles: **bold**, *italic*, `inline code`, ```code blocks```,
@@ -216,7 +217,7 @@ const styles = StyleSheet.create({
     borderRadius: 3,
     color: '#C7402D',
   },
-  link: { color: '#D97757', textDecorationLine: 'underline' },
+  link: { color: colors.primary, textDecorationLine: 'underline' },
   codeBlock: {
     backgroundColor: '#1E1E1E',
     borderRadius: 8,
@@ -238,13 +239,13 @@ const styles = StyleSheet.create({
   },
   blockquote: {
     borderLeftWidth: 3,
-    borderLeftColor: '#D97757',
+    borderLeftColor: colors.primary,
     paddingLeft: 12,
     marginVertical: 6,
   },
   quoteText: { fontSize: 14, lineHeight: 21, color: '#666', fontStyle: 'italic' },
   list: { marginVertical: 4 },
   listItem: { flexDirection: 'row', marginBottom: 4, paddingLeft: 4 },
-  bullet: { color: '#D97757', marginRight: 8, fontSize: 14 },
+  bullet: { color: colors.primary, marginRight: 8, fontSize: 14 },
   listText: { flex: 1, fontSize: 14, lineHeight: 21, color: '#1a1a1a' },
 });
