@@ -8,10 +8,12 @@ import { colors } from '../theme';
  * - Entire bar is draggable; interactive elements are no-drag zones
  */
 
-import { useState, useRef, useEffect } from 'react';
+import { useState } from 'react';
 import { View, Text, TouchableOpacity, Pressable, StyleSheet, Platform } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useConnection } from '../stores/connection';
+import { useIsWideScreen } from '../hooks/useLayout';
+import { useDrawer } from '../stores/drawer';
 
 // Detect desktop platform from preload bridge
 function getDesktopPlatform(): 'darwin' | 'win32' | 'linux' | null {
@@ -25,6 +27,8 @@ export default function Header() {
   const router = useRouter();
   const platform = getDesktopPlatform();
   const [dropdownOpen, setDropdownOpen] = useState(false);
+  const isWide = useIsWideScreen();
+  const requestToggle = useDrawer((s) => s.requestToggle);
 
   const {
     accounts, activeAccountId, isConnected, agentName,
@@ -67,6 +71,20 @@ export default function Header() {
     ]}>
       {/* macOS traffic light padding */}
       {platform === 'darwin' && <View style={styles.macPadding} />}
+
+      {/* Hamburger button (narrow screens only) */}
+      {!isWide && (
+        <TouchableOpacity
+          onPress={requestToggle}
+          style={[
+            styles.hamburgerBtn,
+            // @ts-ignore
+            { WebkitAppRegion: 'no-drag' },
+          ]}
+        >
+          <Text style={styles.hamburgerText}>☰</Text>
+        </TouchableOpacity>
+      )}
 
       {/* Center: account switcher */}
       <View style={styles.center}>
@@ -156,6 +174,18 @@ const styles = StyleSheet.create({
   },
   macPadding: { width: 78 },
   winPadding: { width: 140 },
+  hamburgerBtn: {
+    width: 32,
+    height: 32,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginLeft: 8,
+    borderRadius: 6,
+  },
+  hamburgerText: {
+    fontSize: 16,
+    color: '#666',
+  },
   center: {
     flex: 1,
     alignItems: 'center',

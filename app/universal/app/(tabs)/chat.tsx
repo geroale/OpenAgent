@@ -70,7 +70,7 @@ export default function ChatScreen() {
   );
 
   return (
-    <ResponsiveSidebar sidebar={sidebarContent} sidebarWidth={240}>
+    <ResponsiveSidebar sidebar={sidebarContent}>
       <View style={styles.chatArea}>
         {activeSession ? (
           <>

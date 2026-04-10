@@ -116,7 +116,7 @@ export default function MemoryScreen() {
   );
 
   return (
-    <ResponsiveSidebar sidebar={sidebarContent} sidebarWidth={220}>
+    <ResponsiveSidebar sidebar={sidebarContent}>
       <View style={styles.mainArea}>
         {selectedPath ? (
           <View style={styles.editorContainer}>
