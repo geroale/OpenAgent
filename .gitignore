@@ -23,6 +23,8 @@ app/universal/web-build/
 app/universal/.expo/
 app/universal/android/
 app/universal/ios/
+docs/.vitepress/cache/
+docs/.vitepress/dist/
 *.asar
 
 # IDE
