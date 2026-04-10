@@ -57,8 +57,11 @@ export default function ResponsiveSidebar({ sidebar, children }: Props) {
             borderRightColor: '#EBEBEB',
             borderRadius: 0,
           },
+          sceneContainerStyle: { borderRadius: 0 } as any,
+          sceneStyle: { borderRadius: 0 } as any,
           overlayColor: 'rgba(0,0,0,0.3)',
           swipeEnabled: !isWide,
+          drawerStatusBarAnimation: 'none',
         }}
         drawerContent={renderDrawerContent}
       >
