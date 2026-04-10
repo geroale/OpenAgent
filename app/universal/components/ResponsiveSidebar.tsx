@@ -1,45 +1,16 @@
 /**
- * Responsive sidebar using @react-navigation/drawer.
+ * Responsive sidebar — simple, no navigator dependency.
  *
- * Wide (>= 768px): permanently open sidebar.
- * Narrow (< 768px): slide-in drawer with gesture support.
+ * Wide (>= 768px): fixed panel beside content.
+ * Narrow (< 768px): overlay drawer toggled via Header hamburger.
  */
 
-import { useEffect, useRef } from 'react';
-import { View, StyleSheet, Platform } from 'react-native';
-import {
-  createDrawerNavigator,
-  DrawerContentComponentProps,
-} from '@react-navigation/drawer';
-import { NavigationIndependentTree, useNavigation } from '@react-navigation/native';
+import { useState, useEffect, useRef } from 'react';
+import { View, Pressable, StyleSheet } from 'react-native';
 import { useIsWideScreen } from '../hooks/useLayout';
 import { useDrawer } from '../stores/drawer';
 
 const SIDEBAR_WIDTH = 260;
-const Nav = createDrawerNavigator();
-
-// Stable refs for content — avoids remounting on every render
-let _sidebarRef: React.ReactNode = null;
-let _childrenRef: React.ReactNode = null;
-
-function DrawerContent(_props: DrawerContentComponentProps) {
-  return <View style={styles.drawerContent}>{_sidebarRef}</View>;
-}
-
-function MainScreen() {
-  const navigation = useNavigation<any>();
-  const toggleRequested = useDrawer((s) => s.toggleRequested);
-  const lastToggle = useRef(0);
-
-  useEffect(() => {
-    if (toggleRequested > 0 && toggleRequested !== lastToggle.current) {
-      lastToggle.current = toggleRequested;
-      navigation.toggleDrawer();
-    }
-  }, [toggleRequested, navigation]);
-
-  return <View style={styles.fill}>{_childrenRef}</View>;
-}
 
 interface Props {
   sidebar: React.ReactNode;
@@ -48,47 +19,71 @@ interface Props {
 
 export default function ResponsiveSidebar({ sidebar, children }: Props) {
   const isWide = useIsWideScreen();
+  const toggleRequested = useDrawer((s) => s.toggleRequested);
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const lastToggle = useRef(0);
 
-  // Update refs without causing component identity change
-  _sidebarRef = sidebar;
-  _childrenRef = children;
-
+  // Toggle drawer on hamburger press
   useEffect(() => {
-    if (Platform.OS !== 'web') return;
-    const style = document.createElement('style');
-    style.textContent = `[style*="border-radius: 0px 16px"] { border-radius: 0px !important; }`;
-    document.head.appendChild(style);
-    return () => { document.head.removeChild(style); };
-  }, []);
+    if (toggleRequested > 0 && toggleRequested !== lastToggle.current) {
+      lastToggle.current = toggleRequested;
+      setDrawerOpen((prev) => !prev);
+    }
+  }, [toggleRequested]);
+
+  // Close drawer when switching to wide layout
+  useEffect(() => {
+    if (isWide) setDrawerOpen(false);
+  }, [isWide]);
+
+  if (isWide) {
+    return (
+      <View style={styles.row}>
+        <View style={styles.fixedSidebar}>{sidebar}</View>
+        <View style={styles.fill}>{children}</View>
+      </View>
+    );
+  }
 
   return (
-    <NavigationIndependentTree>
-      <Nav.Navigator
-        screenOptions={{
-          headerShown: false,
-          drawerType: isWide ? 'permanent' : 'front',
-          drawerStyle: {
-            width: SIDEBAR_WIDTH,
-            backgroundColor: '#F5F5F5',
-            borderRightWidth: 1,
-            borderRightColor: '#EBEBEB',
-            borderRadius: 0,
-          },
-          sceneContainerStyle: { borderRadius: 0 } as any,
-          sceneStyle: { borderRadius: 0 } as any,
-          overlayColor: 'rgba(0,0,0,0.3)',
-          swipeEnabled: !isWide,
-          drawerStatusBarAnimation: 'none',
-        }}
-        drawerContent={DrawerContent}
-      >
-        <Nav.Screen name="__main__" component={MainScreen} />
-      </Nav.Navigator>
-    </NavigationIndependentTree>
+    <View style={styles.fill}>
+      {children}
+      {drawerOpen && (
+        <>
+          <Pressable style={styles.backdrop} onPress={() => setDrawerOpen(false)} />
+          <View style={styles.drawer}>{sidebar}</View>
+        </>
+      )}
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  drawerContent: { flex: 1 },
+  row: { flex: 1, flexDirection: 'row' },
   fill: { flex: 1 },
+  fixedSidebar: {
+    width: SIDEBAR_WIDTH,
+    backgroundColor: '#F5F5F5',
+    borderRightWidth: 1,
+    borderRightColor: '#EBEBEB',
+  },
+  backdrop: {
+    position: 'absolute',
+    top: 0, left: 0, right: 0, bottom: 0,
+    backgroundColor: 'rgba(0,0,0,0.3)',
+    zIndex: 100,
+  },
+  drawer: {
+    position: 'absolute',
+    top: 0, left: 0, bottom: 0,
+    width: SIDEBAR_WIDTH,
+    backgroundColor: '#F5F5F5',
+    borderRightWidth: 1,
+    borderRightColor: '#EBEBEB',
+    zIndex: 101,
+    shadowColor: '#000',
+    shadowOffset: { width: 4, height: 0 },
+    shadowOpacity: 0.1,
+    shadowRadius: 12,
+  },
 });
