@@ -68,6 +68,16 @@ export async function getGraph(): Promise<GraphData> {
   return get<GraphData>('/api/vault/graph');
 }
 
+// ── File Upload ──
+
+export async function uploadFile(file: File): Promise<{ path: string; filename: string }> {
+  const form = new FormData();
+  form.append('file', file);
+  const res = await fetch(`${baseUrl}/api/upload`, { method: 'POST', body: form });
+  if (!res.ok) throw new Error(`Upload failed: ${res.status}`);
+  return res.json();
+}
+
 // ── Config API ──
 
 export async function getConfig(): Promise<AgentConfig> {

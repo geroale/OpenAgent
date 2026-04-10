@@ -12,6 +12,7 @@ import { useConnection } from '../../stores/connection';
 import { useChat } from '../../stores/chat';
 import Markdown from '../../components/Markdown';
 import ResponsiveSidebar from '../../components/ResponsiveSidebar';
+import { uploadFile } from '../../services/api';
 
 export default function ChatScreen() {
   const ws = useConnection((s) => s.ws);
@@ -40,6 +41,28 @@ export default function ChatScreen() {
       e.preventDefault();
       handleSend();
     }
+  };
+
+  const handleFilePick = () => {
+    if (Platform.OS !== 'web' || !ws || !activeSessionId) return;
+    const fileInput = document.createElement('input');
+    fileInput.type = 'file';
+    fileInput.accept = 'image/*,.pdf,.txt,.md,.csv,.json,.py,.js,.ts,.yaml,.yml,.log';
+    fileInput.onchange = async () => {
+      const file = fileInput.files?.[0];
+      if (!file) return;
+      try {
+        const { path, filename } = await uploadFile(file);
+        const kind = file.type?.startsWith('image/') ? 'image' : 'file';
+        const msg = `The user attached a file:\n- ${kind}: ${filename} — local path: ${path}\nUse the Read tool to inspect it.`;
+        // Show in chat as user message, then send through Gateway
+        addUserMessage(activeSessionId, `📎 ${filename}`);
+        ws.sendMessage(msg, activeSessionId);
+      } catch (e: any) {
+        console.error('Upload failed:', e);
+      }
+    };
+    fileInput.click();
   };
 
   const sidebarContent = (
@@ -107,6 +130,12 @@ export default function ChatScreen() {
             </ScrollView>
 
             <View style={styles.inputBar}>
+              {/* File attach button */}
+              {Platform.OS === 'web' && (
+                <TouchableOpacity style={styles.attachBtn} onPress={handleFilePick}>
+                  <Text style={styles.attachBtnText}>📎</Text>
+                </TouchableOpacity>
+              )}
               {Platform.OS === 'web' ? (
                 <textarea
                   value={input}
@@ -200,6 +229,11 @@ const styles = StyleSheet.create({
     backgroundColor: colors.primary, width: 36, height: 36, borderRadius: 18,
     alignItems: 'center', justifyContent: 'center', marginLeft: 8,
   },
+  attachBtn: {
+    width: 36, height: 36, borderRadius: 18,
+    alignItems: 'center', justifyContent: 'center', marginRight: 6,
+  },
+  attachBtnText: { fontSize: 18 },
   sendBtnDisabled: { opacity: 0.3 },
   sendText: { color: '#fff', fontSize: 16, fontWeight: '700' },
   emptyState: { flex: 1, justifyContent: 'center', alignItems: 'center' },
