@@ -70,7 +70,7 @@ export async function getGraph(): Promise<GraphData> {
 
 // ── File Upload ──
 
-export async function uploadFile(file: File): Promise<{ path: string; filename: string }> {
+export async function uploadFile(file: File): Promise<{ path: string; filename: string; transcription?: string }> {
   const form = new FormData();
   form.append('file', file);
   const res = await fetch(`${baseUrl}/api/upload`, { method: 'POST', body: form });
