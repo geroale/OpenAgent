@@ -122,6 +122,24 @@
   color: var(--vp-c-brand-1);
 }
 
+.brand-flow {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 1rem;
+  margin-top: 1rem;
+}
+
+.brand-flow-step {
+  padding: 1rem 1.1rem;
+  border-radius: 20px;
+  border: 1px solid var(--vp-c-border);
+  background: var(--vp-c-bg-elv);
+}
+
+.brand-flow-step p {
+  margin-bottom: 0;
+}
+
 .downloads-shell {
   display: grid;
   gap: 1rem;
@@ -150,7 +168,7 @@
 }
 
 .download-card h3 {
-  margin: 0 0 0.3rem;
+  margin: 0;
 }
 
 .download-card ul {
@@ -164,6 +182,33 @@
 
 .download-card a {
   font-weight: 600;
+}
+
+.download-card-header,
+.download-platform-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.8rem;
+}
+
+.download-kicker {
+  margin-bottom: 0.35rem;
+  color: var(--vp-c-brand-1);
+  font-size: 0.82rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.download-release-chip {
+  padding: 0.3rem 0.7rem;
+  border-radius: 999px;
+  background: var(--vp-c-brand-soft);
+  color: var(--vp-c-brand-1);
+  font-size: 0.82rem;
+  font-weight: 700;
+  white-space: nowrap;
 }
 
 .download-state {
@@ -183,11 +228,59 @@
   font-size: 0.95rem;
 }
 
+.download-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin-top: 1rem;
+}
+
+.download-action {
+  display: inline-flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  min-width: 180px;
+  padding: 0.85rem 1rem;
+  border-radius: 18px;
+  border: 1px solid var(--vp-c-border);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.92), rgba(255, 255, 255, 0.98)),
+    linear-gradient(120deg, rgba(239, 65, 54, 0.04), rgba(251, 176, 64, 0.12));
+  color: var(--vp-c-text-1);
+  text-decoration: none;
+}
+
+.download-action span {
+  color: var(--vp-c-text-2);
+  font-size: 0.85rem;
+  font-weight: 500;
+}
+
+.download-action:hover {
+  border-color: var(--vp-c-brand-2);
+  color: var(--vp-c-brand-1);
+}
+
 .download-links {
   display: flex;
   flex-wrap: wrap;
   gap: 0.8rem;
   margin-top: 1rem;
+}
+
+.download-platform-list {
+  display: grid;
+  gap: 0.9rem;
+  margin-top: 1rem;
+}
+
+.download-platform {
+  padding: 1rem;
+  border: 1px solid var(--vp-c-border);
+  border-radius: 20px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.86), rgba(255, 255, 255, 0.96)),
+    linear-gradient(120deg, rgba(239, 65, 54, 0.04), rgba(251, 176, 64, 0.08));
 }
 
 .download-pill {
@@ -203,4 +296,11 @@
 
 .download-pill:hover {
   background: var(--vp-c-brand-soft-hover);
+}
+
+.dark .download-action,
+.dark .download-platform {
+  background:
+    linear-gradient(180deg, rgba(52, 38, 29, 0.86), rgba(52, 38, 29, 0.98)),
+    linear-gradient(120deg, rgba(239, 65, 54, 0.12), rgba(251, 176, 64, 0.12));
 }

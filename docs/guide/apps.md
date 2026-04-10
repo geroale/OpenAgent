@@ -2,6 +2,12 @@
 
 OpenAgent is not a single installer. It is a **model-agnostic agent system** with three independent apps that are released together but installed separately.
 
+Most setups look like this:
+
+1. Install the **Agent Server** on the machine that should keep the agent running.
+2. Install the **CLI Client** or **Desktop App** on the machine where you want to control that agent.
+3. Point both clients at the same OpenAgent Gateway.
+
 ## 1. Agent Server
 
 This is the actual OpenAgent runtime in `openagent/`.
@@ -46,6 +52,7 @@ This is the Electron app for chat, memory browsing, graph exploration, MCP confi
 - The Agent Server and CLI Client are attached as Python package artifacts.
 - The Desktop App is attached as macOS, Windows, and Linux installers.
 - The Agent Server also supports install and auto-update flows after installation.
+- The [Downloads](../downloads.md) page resolves the newest available GitHub asset for each app separately, so one missing artifact family does not hide the others.
 
 ## Model-Agnostic Behavior
 

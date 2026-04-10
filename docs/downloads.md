@@ -1,16 +1,35 @@
 # Downloads
 
-OpenAgent is distributed as **three independent apps**:
+OpenAgent ships as **three independent downloads**:
 
 1. **Agent Server**: the persistent runtime in `openagent/`, installed on the machine that should actually run the agent, channels, memory, scheduler, and auto-updater.
 2. **CLI Client**: a separate terminal client that connects to any running OpenAgent Gateway.
 3. **Desktop App**: the Electron UI for chat, MCPs, memory, and configuration.
 
-All three are conceptually separate. You usually install the Agent Server on the host that will run the agent, then use either the CLI Client or the Desktop App from your workstation.
+They are not bundled into one installer. In most setups you install the Agent Server on the host that will actually run OpenAgent, then add the CLI Client or the Desktop App on your workstation.
 
-## Install Flow
+<div class="brand-section">
 
-### 1. Agent Server
+## Choose the right install flow
+
+<div class="brand-flow">
+  <div class="brand-flow-step">
+    <strong>1. Install the Agent Server</strong>
+    <p>Required if you want OpenAgent itself to run. This is the only component that talks to models, MCP servers, memory, channels, and the scheduler.</p>
+  </div>
+  <div class="brand-flow-step">
+    <strong>2. Add a client</strong>
+    <p>Install the CLI Client for terminal workflows, the Desktop App for visual control, or both. Neither one replaces the server.</p>
+  </div>
+  <div class="brand-flow-step">
+    <strong>3. Connect to the same Gateway</strong>
+    <p>Both clients connect to a running OpenAgent Gateway over WebSocket, so the runtime stays centralized while the access surface stays flexible.</p>
+  </div>
+</div>
+
+</div>
+
+## Agent Server
 
 Install this if you want to run OpenAgent itself.
 
@@ -23,7 +42,7 @@ openagent serve
 - The Agent Server owns installation, service setup, and auto-update behavior.
 - This is the component that talks to models, MCP servers, memory, channels, and scheduled jobs.
 
-### 2. CLI Client
+## CLI Client
 
 Install this if you want a terminal UI for an already running OpenAgent server.
 
@@ -36,7 +55,7 @@ openagent-cli connect localhost:8765 --token mysecret
 - It connects to any OpenAgent Gateway over WebSocket.
 - Tagged releases attach CLI package artifacts alongside the other release assets.
 
-### 3. Desktop App
+## Desktop App
 
 Install this if you want the Electron UI.
 
@@ -46,9 +65,9 @@ Install this if you want the Electron UI.
 
 The Desktop App is also independent: it is a client, not the runtime itself.
 
-## Latest Release Assets
+## Latest GitHub Downloads
 
-The cards below always target the latest stable GitHub release and separate the artifacts by Agent Server, CLI Client, and Desktop App.
+The cards below scan recent stable GitHub releases and always show the newest available download for each product family. That matters because the latest Agent Server tag may differ from the latest CLI tag, and desktop installers can land on a different release than the Python packages.
 
 <ReleaseDownloads />
 
@@ -68,5 +87,5 @@ cd app
   - Agent Server Python package
   - CLI Client Python package
   - Desktop App installers and update metadata
-- The download cards above update automatically when a new stable GitHub release is published.
-- If the latest release predates a given artifact family, browse the full release history or build from source.
+- The download cards above update automatically when a new stable GitHub release is published for that app family.
+- If a given app is not attached to any recent stable release yet, browse the full release history or build from source.
