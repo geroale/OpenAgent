@@ -166,7 +166,7 @@ export default function McpsScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#FAFAFA' },
-  content: { padding: 24, maxWidth: 600 },
+  content: { padding: 24, maxWidth: 600, width: "100%", alignSelf: "center" },
   sectionTitle: { fontSize: 17, fontWeight: '600', color: '#1a1a1a', marginBottom: 4 },
   sectionHint: { fontSize: 12, color: '#999', marginBottom: 12 },
   card: {

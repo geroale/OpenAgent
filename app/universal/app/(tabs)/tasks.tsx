@@ -194,7 +194,7 @@ export default function TasksScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#FAFAFA' },
-  content: { padding: 24, maxWidth: 600 },
+  content: { padding: 24, maxWidth: 600, width: "100%", alignSelf: "center" },
   title: { fontSize: 17, fontWeight: '600', color: '#1a1a1a', marginBottom: 4 },
   hint: { fontSize: 12, color: '#999', marginBottom: 16 },
   toggleCard: {
