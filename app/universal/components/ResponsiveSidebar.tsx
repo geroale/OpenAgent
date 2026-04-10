@@ -3,25 +3,43 @@
  *
  * Wide (>= 768px): permanently open sidebar.
  * Narrow (< 768px): slide-in drawer with gesture support.
- *
- * Listens to useDrawer.toggleRequested to open/close on narrow screens
- * (triggered by the hamburger button in the Header).
  */
 
-import { useCallback, useEffect, useRef } from 'react';
+import { useEffect, useRef } from 'react';
 import { View, StyleSheet, Platform } from 'react-native';
 import {
   createDrawerNavigator,
   DrawerContentComponentProps,
-  useDrawerStatus,
 } from '@react-navigation/drawer';
 import { NavigationIndependentTree, useNavigation } from '@react-navigation/native';
 import { useIsWideScreen } from '../hooks/useLayout';
 import { useDrawer } from '../stores/drawer';
 
 const SIDEBAR_WIDTH = 260;
-
 const Nav = createDrawerNavigator();
+
+// Stable refs for content — avoids remounting on every render
+let _sidebarRef: React.ReactNode = null;
+let _childrenRef: React.ReactNode = null;
+
+function DrawerContent(_props: DrawerContentComponentProps) {
+  return <View style={styles.drawerContent}>{_sidebarRef}</View>;
+}
+
+function MainScreen() {
+  const navigation = useNavigation<any>();
+  const toggleRequested = useDrawer((s) => s.toggleRequested);
+  const lastToggle = useRef(0);
+
+  useEffect(() => {
+    if (toggleRequested > 0 && toggleRequested !== lastToggle.current) {
+      lastToggle.current = toggleRequested;
+      navigation.toggleDrawer();
+    }
+  }, [toggleRequested, navigation]);
+
+  return <View style={styles.fill}>{_childrenRef}</View>;
+}
 
 interface Props {
   sidebar: React.ReactNode;
@@ -31,29 +49,14 @@ interface Props {
 export default function ResponsiveSidebar({ sidebar, children }: Props) {
   const isWide = useIsWideScreen();
 
-  const renderDrawerContent = useCallback(
-    (_props: DrawerContentComponentProps) => (
-      <View style={styles.drawerContent}>{sidebar}</View>
-    ),
-    [sidebar],
-  );
+  // Update refs without causing component identity change
+  _sidebarRef = sidebar;
+  _childrenRef = children;
 
-  // Main screen component that listens for toggle events
-  const MainScreen = useCallback(
-    () => <DrawerToggleListener>{children}</DrawerToggleListener>,
-    [children],
-  );
-
-  // Inject CSS override on web — the drawer library applies inline
-  // border-radius that can't be overridden via React Native style props.
   useEffect(() => {
     if (Platform.OS !== 'web') return;
     const style = document.createElement('style');
-    style.textContent = `
-      [style*="border-radius: 0px 16px"] {
-        border-radius: 0px !important;
-      }
-    `;
+    style.textContent = `[style*="border-radius: 0px 16px"] { border-radius: 0px !important; }`;
     document.head.appendChild(style);
     return () => { document.head.removeChild(style); };
   }, []);
@@ -77,28 +80,12 @@ export default function ResponsiveSidebar({ sidebar, children }: Props) {
           swipeEnabled: !isWide,
           drawerStatusBarAnimation: 'none',
         }}
-        drawerContent={renderDrawerContent}
+        drawerContent={DrawerContent}
       >
         <Nav.Screen name="__main__" component={MainScreen} />
       </Nav.Navigator>
     </NavigationIndependentTree>
   );
-}
-
-/** Listens to the global drawer toggle store and opens/closes the drawer */
-function DrawerToggleListener({ children }: { children: React.ReactNode }) {
-  const navigation = useNavigation<any>();
-  const toggleRequested = useDrawer((s) => s.toggleRequested);
-  const lastToggle = useRef(0);
-
-  useEffect(() => {
-    if (toggleRequested > 0 && toggleRequested !== lastToggle.current) {
-      lastToggle.current = toggleRequested;
-      navigation.toggleDrawer();
-    }
-  }, [toggleRequested, navigation]);
-
-  return <View style={styles.fill}>{children}</View>;
 }
 
 const styles = StyleSheet.create({
