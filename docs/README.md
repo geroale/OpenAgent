@@ -29,6 +29,32 @@ openagent serve
 
 ---
 
+## Repository Layout
+
+```
+OpenAgent/
+├── openagent/                  # Python package (shipped via pip)
+│   ├── cli.py                  #   CLI entry point (openagent serve, chat, setup, ...)
+│   ├── core/                   #   Runtime: agent loop, server lifecycle, scheduler, config, prompts
+│   ├── setup/                  #   First-run: platform checks (doctor), OS service installer
+│   ├── channels/               #   Telegram, Discord, WhatsApp integrations
+│   ├── models/                 #   LLM providers (Claude CLI/API, Zhipu/OpenAI-compat)
+│   ├── mcp/                    #   MCP client (stdio + SSE + OAuth)
+│   ├── mcps/                   #   Bundled MCP servers (TypeScript + Python, built at first run)
+│   ├── memory/                 #   SQLite backend for scheduled tasks
+│   └── services/               #   Auxiliary daemons (Syncthing vault sync)
+├── scripts/                    # Operational shell scripts (setup, start, stop, status, release)
+├── desktop/                    # Electron desktop app (coming soon)
+├── docs/                       # Documentation + examples
+│   └── examples/               #   Production config, systemd unit, Syncthing setup
+├── .github/workflows/          # CI/CD (PyPI publish on tag push)
+└── pyproject.toml              # Package metadata + dependencies
+```
+
+The `openagent/mcps/` directory contains bundled MCP tool servers (editor, shell, web-search, computer-control, chrome-devtools, messaging, scheduler). They're mostly TypeScript and are built automatically on first use if Node.js is available. The scheduler MCP is Python-native.
+
+---
+
 ## Models
 
 OpenAgent supports multiple LLM providers. Every model gets the same MCP tools — no provider-specific behavior.
