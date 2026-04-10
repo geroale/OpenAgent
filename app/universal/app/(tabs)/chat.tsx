@@ -103,18 +103,15 @@ export default function ChatScreen() {
         stream.getTracks().forEach((t) => t.stop());
         const blob = new Blob(chunksRef.current, { type: 'audio/webm' });
         const file = new File([blob], 'voice.webm', { type: 'audio/webm' });
+        if (!activeSessionId || !ws) return;
         try {
           const result = await uploadFile(file);
-          if ((result as any).transcription) {
-            // Voice was transcribed server-side — put text in input
-            setInput((prev) => {
-              const t = (result as any).transcription;
-              return prev ? `${prev} ${t}` : t;
-            });
-          } else {
-            // No transcription — attach as file
-            setPendingFile({ filename: result.filename, remotePath: result.path, kind: 'file' });
-          }
+          const transcription = (result as any).transcription;
+          const msg = transcription
+            ? transcription
+            : `The user sent a voice message:\n- audio: ${result.filename} — local path: ${result.path}\nUse Read to inspect it.`;
+          addUserMessage(activeSessionId, '🎙 Voice message');
+          ws.sendMessage(msg, activeSessionId);
         } catch (e: any) {
           console.error('Voice upload failed:', e);
         }
