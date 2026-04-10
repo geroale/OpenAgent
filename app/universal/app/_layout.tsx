@@ -3,7 +3,9 @@ import { useEffect } from 'react';
 import { View, StyleSheet, Platform } from 'react-native';
 import { useConnection } from '../stores/connection';
 import { useChat } from '../stores/chat';
+import { ConfirmProvider } from '../components/ConfirmDialog';
 import Header from '../components/Header';
+import { colors } from '../theme';
 
 export default function RootLayout() {
   const ws = useConnection((s) => s.ws);
@@ -22,19 +24,21 @@ export default function RootLayout() {
   }, [ws, handleServerMessage]);
 
   return (
-    <View style={styles.root}>
-      {Platform.OS === 'web' && <Header />}
-      <View style={styles.content}>
-        <Stack screenOptions={{ headerShown: false }}>
-          <Stack.Screen name="index" />
-          <Stack.Screen name="(tabs)" />
-        </Stack>
+    <ConfirmProvider>
+      <View style={styles.root}>
+        {Platform.OS === 'web' && <Header />}
+        <View style={styles.content}>
+          <Stack screenOptions={{ headerShown: false }}>
+            <Stack.Screen name="index" />
+            <Stack.Screen name="(tabs)" />
+          </Stack>
+        </View>
       </View>
-    </View>
+    </ConfirmProvider>
   );
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: '#FAFAFA' },
+  root: { flex: 1, backgroundColor: colors.bg },
   content: { flex: 1 },
 });

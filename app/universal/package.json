@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "expo": "~55.0.0",
+    "expo-linear-gradient": "~15.0.7",
     "expo-router": "~5.0.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",

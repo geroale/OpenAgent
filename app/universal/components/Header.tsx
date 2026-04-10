@@ -14,6 +14,7 @@ import { useRouter } from 'expo-router';
 import { useConnection } from '../stores/connection';
 import { useIsWideScreen } from '../hooks/useLayout';
 import { useDrawer } from '../stores/drawer';
+import { useConfirm } from './ConfirmDialog';
 
 // Detect desktop platform from preload bridge
 function getDesktopPlatform(): 'darwin' | 'win32' | 'linux' | null {
@@ -29,6 +30,7 @@ export default function Header() {
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const isWide = useIsWideScreen();
   const requestToggle = useDrawer((s) => s.requestToggle);
+  const confirm = useConfirm();
 
   const {
     accounts, activeAccountId, isConnected, agentName,
@@ -46,13 +48,18 @@ export default function Header() {
     }
   };
 
-  const handleRemove = (id: string, name: string) => {
-    if (window.confirm(`Remove "${name}"? You can re-add it later.`)) {
-      removeAccount(id);
-      setDropdownOpen(false);
-      if (id === activeAccountId) {
-        router.replace('/');
-      }
+  const handleRemove = async (id: string, name: string) => {
+    const confirmed = await confirm({
+      title: 'Remove Agent',
+      message: `Remove "${name}"? You can re-add it later.`,
+      confirmLabel: 'Remove',
+    });
+    if (!confirmed) return;
+
+    removeAccount(id);
+    setDropdownOpen(false);
+    if (id === activeAccountId) {
+      router.replace('/');
     }
   };
 
@@ -144,7 +151,7 @@ export default function Header() {
                   </View>
                 </TouchableOpacity>
                 <TouchableOpacity
-                  onPress={() => handleRemove(acc.id, acc.name)}
+                  onPress={() => { void handleRemove(acc.id, acc.name); }}
                   style={styles.removeBtn}
                 >
                   <Text style={styles.removeBtnText}>✕</Text>
@@ -166,9 +173,9 @@ const styles = StyleSheet.create({
     height: 38,
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#F5F5F5',
+    backgroundColor: colors.sidebar,
     borderBottomWidth: 1,
-    borderBottomColor: '#EBEBEB',
+    borderBottomColor: colors.border,
     position: 'relative',
     zIndex: 200,
   },
@@ -184,7 +191,7 @@ const styles = StyleSheet.create({
   },
   hamburgerText: {
     fontSize: 16,
-    color: '#666',
+    color: colors.textSecondary,
   },
   center: {
     flex: 1,
@@ -204,17 +211,17 @@ const styles = StyleSheet.create({
     borderRadius: 4,
     marginRight: 7,
   },
-  dotGreen: { backgroundColor: '#4CAF50' },
-  dotGray: { backgroundColor: '#CCC' },
+  dotGreen: { backgroundColor: colors.success },
+  dotGray: { backgroundColor: colors.border },
   accountName: {
     fontSize: 13,
     fontWeight: '500',
-    color: '#333',
+    color: colors.text,
     maxWidth: 200,
   },
   chevron: {
     fontSize: 11,
-    color: '#999',
+    color: colors.textMuted,
     marginLeft: 5,
   },
   addBtn: {
@@ -224,11 +231,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 8,
-    backgroundColor: '#EBEBEB',
+    backgroundColor: colors.primaryLight,
   },
   addBtnText: {
     fontSize: 18,
-    color: '#666',
+    color: colors.primary,
     fontWeight: '400',
     marginTop: -1,
   },
@@ -249,10 +256,10 @@ const styles = StyleSheet.create({
     // @ts-ignore web transform
     transform: [{ translateX: -120 }],
     width: 240,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.surface,
     borderRadius: 10,
     borderWidth: 1,
-    borderColor: '#E8E8E8',
+    borderColor: colors.border,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.08,
@@ -283,12 +290,12 @@ const styles = StyleSheet.create({
   dropdownInfo: { flex: 1 },
   dropdownName: {
     fontSize: 13,
-    color: '#1a1a1a',
+    color: colors.text,
     fontWeight: '500',
   },
   dropdownHost: {
     fontSize: 11,
-    color: '#999',
+    color: colors.textMuted,
     marginTop: 1,
   },
   removeBtn: {
@@ -296,17 +303,17 @@ const styles = StyleSheet.create({
   },
   removeBtnText: {
     fontSize: 11,
-    color: '#CCC',
+    color: colors.textMuted,
   },
   emptyDropdown: {
     padding: 12,
     fontSize: 12,
-    color: '#999',
+    color: colors.textMuted,
     textAlign: 'center',
   },
   dropdownAdd: {
     borderTopWidth: 1,
-    borderTopColor: '#F0F0F0',
+    borderTopColor: colors.borderLight,
     paddingVertical: 8,
     paddingHorizontal: 12,
     marginTop: 2,

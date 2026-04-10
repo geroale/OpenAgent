@@ -8,6 +8,7 @@ import { colors } from '../theme';
  * Works on web and native.
  */
 
+import type { ReactElement } from 'react';
 import { Text, View, StyleSheet, Linking } from 'react-native';
 
 interface Props {
@@ -156,8 +157,8 @@ function renderBlock(block: Block, key: number) {
 
 // ── Inline parsing (bold, italic, code, links) ──
 
-function renderInline(text: string): (string | JSX.Element)[] {
-  const parts: (string | JSX.Element)[] = [];
+function renderInline(text: string): (string | ReactElement)[] {
+  const parts: (string | ReactElement)[] = [];
   // Regex matches: **bold**, *italic*, `code`, [text](url)
   const re = /(\*\*(.+?)\*\*)|(\*(.+?)\*)|(`([^`]+)`)|(\[([^\]]+)\]\(([^)]+)\))/g;
   let last = 0;
@@ -202,8 +203,8 @@ function renderInline(text: string): (string | JSX.Element)[] {
 }
 
 const styles = StyleSheet.create({
-  paragraph: { fontSize: 14, lineHeight: 21, color: '#1a1a1a', marginBottom: 8 },
-  heading: { fontWeight: '700', color: '#1a1a1a', marginBottom: 6, marginTop: 4 },
+  paragraph: { fontSize: 14, lineHeight: 21, color: colors.text, marginBottom: 8 },
+  heading: { fontWeight: '700', color: colors.text, marginBottom: 6, marginTop: 4 },
   h1: { fontSize: 20 },
   h2: { fontSize: 17 },
   h3: { fontSize: 15 },
@@ -212,21 +213,21 @@ const styles = StyleSheet.create({
   inlineCode: {
     fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
     fontSize: 13,
-    backgroundColor: '#F0F0F0',
+    backgroundColor: colors.primaryLight,
     paddingHorizontal: 4,
     borderRadius: 3,
-    color: '#C7402D',
+    color: colors.primary,
   },
   link: { color: colors.primary, textDecorationLine: 'underline' },
   codeBlock: {
-    backgroundColor: '#1E1E1E',
+    backgroundColor: colors.codeBg,
     borderRadius: 8,
     padding: 14,
     marginVertical: 6,
   },
   codeLang: {
     fontSize: 10,
-    color: '#888',
+    color: colors.textMuted,
     marginBottom: 6,
     textTransform: 'uppercase',
     letterSpacing: 0.5,
@@ -235,7 +236,7 @@ const styles = StyleSheet.create({
     fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
     fontSize: 12,
     lineHeight: 18,
-    color: '#D4D4D4',
+    color: colors.codeText,
   },
   blockquote: {
     borderLeftWidth: 3,
@@ -243,9 +244,9 @@ const styles = StyleSheet.create({
     paddingLeft: 12,
     marginVertical: 6,
   },
-  quoteText: { fontSize: 14, lineHeight: 21, color: '#666', fontStyle: 'italic' },
+  quoteText: { fontSize: 14, lineHeight: 21, color: colors.textSecondary, fontStyle: 'italic' },
   list: { marginVertical: 4 },
   listItem: { flexDirection: 'row', marginBottom: 4, paddingLeft: 4 },
   bullet: { color: colors.primary, marginRight: 8, fontSize: 14 },
-  listText: { flex: 1, fontSize: 14, lineHeight: 21, color: '#1a1a1a' },
+  listText: { flex: 1, fontSize: 14, lineHeight: 21, color: colors.text },
 });

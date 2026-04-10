@@ -7,27 +7,34 @@ export const colors = {
   // Brand — red-to-amber gradient endpoints
   primary: '#ef4136',        // main accent (buttons, active states)
   primaryEnd: '#fbb040',     // gradient end (amber)
-  primaryLight: '#FEF0E6',   // tinted background
+  primaryLight: '#FFF0E4',   // tinted background
   primaryMuted: '#F4856E',   // softer red
 
   // Neutrals
-  bg: '#FAFAFA',
+  bg: '#FFF9F5',
   surface: '#FFFFFF',
-  sidebar: '#F5F5F5',
-  border: '#EBEBEB',
-  borderLight: '#F0F0F0',
-  inputBg: '#F5F5F5',
+  sidebar: '#FFF3EA',
+  border: '#F2DED1',
+  borderLight: '#F7E8DE',
+  inputBg: '#FFF5EE',
 
   // Text
-  text: '#1a1a1a',
-  textSecondary: '#666666',
-  textMuted: '#999999',
+  text: '#1C1612',
+  textSecondary: '#6E5A4B',
+  textMuted: '#A48C7A',
   textInverse: '#FFFFFF',
 
   // Status
   success: '#4CAF50',
   error: '#D94F4F',
   warning: '#E5A100',
+
+  // Graph canvas
+  graphBg: '#FFF2E8',
+  graphEdge: '#EFC4A6',
+  graphLabel: '#6D3920',
+  graphRing: '#F7A24C',
+  graphNodeMuted: '#E97A5A',
 
   // Graph node palette (red → amber gradient steps)
   graph: [
@@ -44,13 +51,14 @@ export const colors = {
   ],
 
   // Code blocks
-  codeBg: '#1E1E1E',
-  codeText: '#D4D4D4',
-  codeKeyword: '#ef4136',
+  codeBg: '#241912',
+  codeText: '#E8DCD2',
+  codeKeyword: '#f58b42',
 } as const;
 
 /** CSS gradient string for web backgrounds */
 export const primaryGradient = 'linear-gradient(135deg, #ef4136 0%, #fbb040 100%)';
+export const primaryGradientStops = [colors.primary, colors.primaryEnd] as const;
 
 export const spacing = {
   xs: 4,

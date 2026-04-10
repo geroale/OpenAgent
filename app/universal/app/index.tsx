@@ -8,6 +8,8 @@ import { View, Text, TextInput, TouchableOpacity, ScrollView, StyleSheet } from 
 import { useRouter } from 'expo-router';
 import { useConnection } from '../stores/connection';
 import { useChat } from '../stores/chat';
+import { useConfirm } from '../components/ConfirmDialog';
+import PrimaryButton from '../components/PrimaryButton';
 
 export default function LoginScreen() {
   const router = useRouter();
@@ -16,6 +18,7 @@ export default function LoginScreen() {
     saveAccount, switchAccount, removeAccount,
   } = useConnection();
   const createSession = useChat((s) => s.createSession);
+  const confirm = useConfirm();
 
   const [host, setHost] = useState('localhost');
   const [port, setPort] = useState('8765');
@@ -35,10 +38,14 @@ export default function LoginScreen() {
     switchAccount(accountId);
   };
 
-  const handleRemove = (id: string, accName: string) => {
-    if (window.confirm(`Remove "${accName}"?`)) {
-      removeAccount(id);
-    }
+  const handleRemove = async (id: string, accName: string) => {
+    const confirmed = await confirm({
+      title: 'Remove Agent',
+      message: `Remove "${accName}"?`,
+      confirmLabel: 'Remove',
+    });
+    if (!confirmed) return;
+    removeAccount(id);
   };
 
   // Navigate on successful connection (in useEffect to avoid setState during render)
@@ -72,15 +79,16 @@ export default function LoginScreen() {
                     <Text style={styles.accountName}>{acc.name}</Text>
                     <Text style={styles.accountHost}>{acc.host}:{acc.port}</Text>
                   </TouchableOpacity>
-                  <TouchableOpacity
+                  <PrimaryButton
                     style={styles.connectBtn}
+                    contentStyle={styles.connectBtnInner}
                     onPress={() => handleQuickConnect(acc.id)}
                   >
                     <Text style={styles.connectBtnText}>Connect</Text>
-                  </TouchableOpacity>
+                  </PrimaryButton>
                   <TouchableOpacity
                     style={styles.deleteBtn}
-                    onPress={() => handleRemove(acc.id, acc.name)}
+                    onPress={() => { void handleRemove(acc.id, acc.name); }}
                   >
                     <Text style={styles.deleteBtnText}>✕</Text>
                   </TouchableOpacity>
@@ -106,7 +114,7 @@ export default function LoginScreen() {
               value={host}
               onChangeText={setHost}
               placeholder="localhost"
-              placeholderTextColor="#999"
+              placeholderTextColor={colors.textMuted}
             />
           </View>
           <View style={styles.fieldRow}>
@@ -118,7 +126,7 @@ export default function LoginScreen() {
                 onChangeText={setPort}
                 placeholder="8765"
                 keyboardType="numeric"
-                placeholderTextColor="#999"
+                placeholderTextColor={colors.textMuted}
               />
             </View>
             <View style={[styles.field, { flex: 2 }]}>
@@ -129,18 +137,16 @@ export default function LoginScreen() {
                 onChangeText={setToken}
                 placeholder="(optional)"
                 secureTextEntry
-                placeholderTextColor="#999"
+                placeholderTextColor={colors.textMuted}
               />
             </View>
           </View>
 
           {error && <Text style={styles.error}>{error}</Text>}
 
-          <TouchableOpacity style={styles.button} onPress={handleSaveAndConnect}>
-            <Text style={styles.buttonText}>
-              {hasSaved ? 'Save & Connect' : 'Connect'}
-            </Text>
-          </TouchableOpacity>
+          <PrimaryButton style={styles.button} onPress={handleSaveAndConnect}>
+            <Text style={styles.buttonText}>{hasSaved ? 'Save & Connect' : 'Connect'}</Text>
+          </PrimaryButton>
         </View>
       </View>
     </ScrollView>
@@ -150,7 +156,7 @@ export default function LoginScreen() {
 const styles = StyleSheet.create({
   container: {
     flexGrow: 1,
-    backgroundColor: '#FAFAFA',
+    backgroundColor: colors.bg,
     justifyContent: 'center',
     alignItems: 'center',
     padding: 24,
@@ -162,16 +168,16 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 20,
     fontWeight: '600',
-    color: '#1a1a1a',
+    color: colors.text,
     marginBottom: 4,
   },
   subtitle: {
     fontSize: 14,
-    color: '#888',
+    color: colors.textSecondary,
     marginBottom: 16,
   },
   card: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.surface,
     borderRadius: 12,
     padding: 16,
     marginTop: 12,
@@ -189,7 +195,7 @@ const styles = StyleSheet.create({
   },
   accountRowBorder: {
     borderTopWidth: 1,
-    borderTopColor: '#F0F0F0',
+    borderTopColor: colors.borderLight,
   },
   accountInfo: {
     flex: 1,
@@ -197,31 +203,33 @@ const styles = StyleSheet.create({
   accountName: {
     fontSize: 14,
     fontWeight: '500',
-    color: '#1a1a1a',
+    color: colors.text,
   },
   accountHost: {
     fontSize: 12,
-    color: '#999',
+    color: colors.textMuted,
     marginTop: 1,
   },
   connectBtn: {
-    backgroundColor: colors.primary,
-    paddingHorizontal: 14,
-    paddingVertical: 6,
-    borderRadius: 6,
     marginLeft: 8,
   },
+  connectBtnInner: {
+    minHeight: 32,
+    paddingHorizontal: 14,
+    paddingVertical: 6,
+    borderRadius: 8,
+  },
   connectBtnText: {
-    color: '#fff',
+    color: colors.textInverse,
     fontSize: 12,
-    fontWeight: '600',
+    fontWeight: '700',
   },
   deleteBtn: {
     padding: 8,
     marginLeft: 4,
   },
   deleteBtnText: {
-    color: '#CCC',
+    color: colors.textMuted,
     fontSize: 12,
   },
 
@@ -230,35 +238,32 @@ const styles = StyleSheet.create({
   fieldRow: { flexDirection: 'row' },
   label: {
     fontSize: 12,
-    color: '#666',
+    color: colors.textSecondary,
     marginBottom: 4,
     fontWeight: '500',
   },
   input: {
-    backgroundColor: '#F5F5F5',
+    backgroundColor: colors.inputBg,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: '#E8E8E8',
+    borderColor: colors.border,
     padding: 10,
-    color: '#1a1a1a',
+    color: colors.text,
     fontSize: 14,
   },
   error: {
-    color: '#D94F4F',
+    color: colors.error,
     fontSize: 13,
     marginBottom: 8,
     textAlign: 'center',
   },
   button: {
-    backgroundColor: colors.primary,
-    borderRadius: 8,
     padding: 13,
     marginTop: 4,
-    alignItems: 'center',
   },
   buttonText: {
-    color: '#FFFFFF',
+    color: colors.textInverse,
     fontSize: 14,
-    fontWeight: '600',
+    fontWeight: '700',
   },
 });

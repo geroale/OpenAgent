@@ -1,7 +1,14 @@
 {
   "name": "openagent-desktop",
+  "description": "Persistent AI agent framework with MCP tools, long-term memory, and multi-channel support.",
   "version": "0.1.0",
   "private": true,
+  "productName": "OpenAgent",
+  "homepage": "https://geroale.github.io/OpenAgent/",
+  "author": {
+    "name": "OpenAgent",
+    "url": "https://geroale.github.io/OpenAgent/"
+  },
   "main": "dist/main.js",
   "scripts": {
     "dev": "tsc && electron .",
@@ -23,12 +30,22 @@
   "build": {
     "appId": "ai.openagent.desktop",
     "productName": "OpenAgent",
+    "protocols": [
+      {
+        "name": "OpenAgent",
+        "schemes": [
+          "openagent"
+        ]
+      }
+    ],
     "directories": {
-      "output": "release"
+      "output": "release",
+      "buildResources": "buildResources"
     },
     "files": [
       "dist/**/*",
-      "web-build/**/*"
+      "web-build/**/*",
+      "package.json"
     ],
     "publish": {
       "provider": "github",
@@ -40,14 +57,18 @@
         { "target": "dmg", "arch": ["x64", "arm64"] },
         { "target": "zip", "arch": ["x64", "arm64"] }
       ],
-      "category": "public.app-category.developer-tools"
+      "category": "public.app-category.developer-tools",
+      "icon": "buildResources/icon.icns",
+      "darkModeSupport": true
     },
     "win": {
+      "icon": "buildResources/icon.ico",
       "target": [
         { "target": "nsis", "arch": ["x64"] }
       ]
     },
     "linux": {
+      "icon": "buildResources/icon.png",
       "target": [
         { "target": "AppImage", "arch": ["x64"] },
         { "target": "deb", "arch": ["x64"] }
@@ -56,7 +77,8 @@
     },
     "nsis": {
       "oneClick": false,
-      "allowToChangeInstallationDirectory": true
+      "allowToChangeInstallationDirectory": true,
+      "deleteAppDataOnUninstall": true
     }
   }
 }

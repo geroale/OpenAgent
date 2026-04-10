@@ -17,6 +17,7 @@ import {
 import { NavigationIndependentTree, useNavigation } from '@react-navigation/native';
 import { useIsWideScreen } from '../hooks/useLayout';
 import { useDrawer } from '../stores/drawer';
+import { colors } from '../theme';
 
 const SIDEBAR_WIDTH = 260;
 const Nav = createDrawerNavigator();
@@ -74,12 +75,11 @@ export default function ResponsiveSidebar({ sidebar, children }: Props) {
             drawerType: isWide ? 'permanent' : 'front',
             drawerStyle: {
               width: SIDEBAR_WIDTH,
-              backgroundColor: '#F5F5F5',
+              backgroundColor: colors.sidebar,
               borderRightWidth: 1,
-              borderRightColor: '#EBEBEB',
+              borderRightColor: colors.border,
               borderRadius: 0,
             },
-            sceneContainerStyle: { borderRadius: 0 } as any,
             sceneStyle: { borderRadius: 0 } as any,
             overlayColor: 'rgba(0,0,0,0.3)',
             swipeEnabled: !isWide,

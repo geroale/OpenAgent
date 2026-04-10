@@ -12,6 +12,16 @@ import { registerStorageHandlers } from './services/storage';
 
 const isDev = !app.isPackaged;
 
+app.setAboutPanelOptions({
+  applicationName: 'OpenAgent',
+  applicationVersion: app.getVersion(),
+  website: 'https://geroale.github.io/OpenAgent/',
+});
+
+if (process.platform === 'win32') {
+  app.setAppUserModelId('ai.openagent.desktop');
+}
+
 // Single instance lock
 const gotLock = app.requestSingleInstanceLock();
 if (!gotLock) {

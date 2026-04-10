@@ -13,6 +13,7 @@ import { useVault } from '../../stores/vault';
 import { setBaseUrl } from '../../services/api';
 import GraphView from '../../components/GraphView';
 import Markdown from '../../components/Markdown';
+import PrimaryButton from '../../components/PrimaryButton';
 import ResponsiveSidebar from '../../components/ResponsiveSidebar';
 import { colors } from '../../theme';
 
@@ -133,12 +134,13 @@ export default function MemoryScreen() {
                 </TouchableOpacity>
                 {rawMode && editorDirty && <Text style={styles.unsavedBadge}>unsaved</Text>}
                 {rawMode && (
-                  <TouchableOpacity
+                  <PrimaryButton
                     style={[styles.saveBtn, !editorDirty && styles.saveBtnDisabled]}
+                    contentStyle={styles.saveBtnInner}
                     onPress={handleSave} disabled={!editorDirty}
                   >
                     <Text style={styles.saveBtnText}>Save</Text>
-                  </TouchableOpacity>
+                  </PrimaryButton>
                 )}
               </View>
             </View>
@@ -193,7 +195,7 @@ const styles = StyleSheet.create({
   searchInput: {
     margin: 10, padding: 8, paddingHorizontal: 12,
     backgroundColor: colors.surface, borderRadius: 6,
-    borderWidth: 1, borderColor: '#E8E8E8', fontSize: 12, color: colors.text,
+    borderWidth: 1, borderColor: colors.border, fontSize: 12, color: colors.text,
   },
   fileTree: { flex: 1, paddingHorizontal: 6 },
   folderName: {
@@ -203,9 +205,9 @@ const styles = StyleSheet.create({
   },
   fileItem: { paddingVertical: 6, paddingHorizontal: 10, borderRadius: 6, marginVertical: 1 },
   fileItemActive: { backgroundColor: colors.border },
-  fileName: { fontSize: 13, color: '#333' },
+  fileName: { fontSize: 13, color: colors.text },
   fileNameActive: { color: colors.primary, fontWeight: '500' },
-  fileTags: { fontSize: 10, color: '#AAA', marginTop: 1 },
+  fileTags: { fontSize: 10, color: colors.textMuted, marginTop: 1 },
   noteCount: { padding: 10, borderTopWidth: 1, borderTopColor: colors.border },
   noteCountText: { fontSize: 11, color: colors.textMuted, textAlign: 'center' },
 
@@ -231,9 +233,10 @@ const styles = StyleSheet.create({
     fontSize: 10, color: colors.primary, backgroundColor: colors.primaryLight,
     paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4, overflow: 'hidden',
   },
-  saveBtn: { backgroundColor: colors.primary, paddingHorizontal: 14, paddingVertical: 5, borderRadius: 6 },
+  saveBtn: {},
+  saveBtnInner: { minHeight: 34, paddingHorizontal: 14, paddingVertical: 5, borderRadius: 8 },
   saveBtnDisabled: { opacity: 0.3 },
-  saveBtnText: { color: colors.textInverse, fontSize: 12, fontWeight: '600' },
+  saveBtnText: { color: colors.textInverse, fontSize: 12, fontWeight: '700' },
   editorInput: { padding: 24, fontFamily: 'monospace', fontSize: 13, color: colors.text, lineHeight: 22 },
   previewScroll: { flex: 1, backgroundColor: colors.surface },
   previewContent: { padding: 24 },

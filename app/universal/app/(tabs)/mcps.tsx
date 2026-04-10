@@ -5,11 +5,14 @@ import { colors } from '../../theme';
 
 import { useEffect, useState } from 'react';
 import {
-  View, Text, TextInput, TouchableOpacity, ScrollView, StyleSheet, Switch,
+  View, Text, TextInput, TouchableOpacity, ScrollView, StyleSheet,
 } from 'react-native';
 import { useConnection } from '../../stores/connection';
 import { useConfig } from '../../stores/config';
 import { setBaseUrl } from '../../services/api';
+import { useConfirm } from '../../components/ConfirmDialog';
+import PrimaryButton from '../../components/PrimaryButton';
+import ThemedSwitch from '../../components/ThemedSwitch';
 
 const DEFAULT_MCPS = [
   { name: 'vault', desc: 'Obsidian-compatible markdown notes (mcpvault)' },
@@ -30,6 +33,7 @@ export default function McpsScreen() {
   const [newName, setNewName] = useState('');
   const [newCommand, setNewCommand] = useState('');
   const [newUrl, setNewUrl] = useState('');
+  const confirm = useConfirm();
 
   useEffect(() => {
     if (config) {
@@ -50,7 +54,12 @@ export default function McpsScreen() {
   };
 
   const removeCustom = async (name: string) => {
-    if (!window.confirm(`Remove MCP "${name}"?`)) return;
+    const confirmed = await confirm({
+      title: 'Remove MCP',
+      message: `Remove MCP "${name}"?`,
+      confirmLabel: 'Remove',
+    });
+    if (!confirmed) return;
     const updated = customMcps.filter((m) => m.name !== name);
     await updateSection('mcp', updated);
   };
@@ -84,11 +93,9 @@ export default function McpsScreen() {
               <Text style={styles.mcpName}>{mcp.name}</Text>
               <Text style={styles.mcpDesc}>{mcp.desc}</Text>
             </View>
-            <Switch
+            <ThemedSwitch
               value={!disabled.includes(mcp.name)}
               onValueChange={() => toggleDefault(mcp.name)}
-              trackColor={{ false: '#DDD', true: colors.primary }}
-              thumbColor="#FFF"
             />
           </View>
         ))}
@@ -130,35 +137,35 @@ export default function McpsScreen() {
               value={newName}
               onChangeText={setNewName}
               placeholder="Name (e.g. github)"
-              placeholderTextColor="#999"
+              placeholderTextColor={colors.textMuted}
             />
             <TextInput
               style={styles.input}
               value={newCommand}
               onChangeText={setNewCommand}
               placeholder="Command (e.g. github-mcp-server stdio)"
-              placeholderTextColor="#999"
+              placeholderTextColor={colors.textMuted}
             />
             <TextInput
               style={styles.input}
               value={newUrl}
               onChangeText={setNewUrl}
               placeholder="Or URL (e.g. http://localhost:8000/mcp)"
-              placeholderTextColor="#999"
+              placeholderTextColor={colors.textMuted}
             />
             <View style={styles.addFormActions}>
               <TouchableOpacity style={styles.cancelBtn} onPress={() => setAddingNew(false)}>
                 <Text style={styles.cancelBtnText}>Cancel</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={styles.saveBtn} onPress={addCustom}>
+              <PrimaryButton style={styles.saveBtn} contentStyle={styles.saveBtnInner} onPress={addCustom}>
                 <Text style={styles.saveBtnText}>Add MCP</Text>
-              </TouchableOpacity>
+              </PrimaryButton>
             </View>
           </View>
         ) : (
-          <TouchableOpacity style={styles.addBtn} onPress={() => setAddingNew(true)}>
+          <PrimaryButton style={styles.addBtn} contentStyle={styles.addBtnInner} onPress={() => setAddingNew(true)}>
             <Text style={styles.addBtnText}>+ Add MCP Server</Text>
-          </TouchableOpacity>
+          </PrimaryButton>
         )}
       </View>
     </ScrollView>
@@ -166,36 +173,38 @@ export default function McpsScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#FAFAFA' },
+  container: { flex: 1, backgroundColor: colors.bg },
   content: { padding: 24, maxWidth: 600, width: "100%", alignSelf: "center" },
-  sectionTitle: { fontSize: 17, fontWeight: '600', color: '#1a1a1a', marginBottom: 4 },
-  sectionHint: { fontSize: 12, color: '#999', marginBottom: 12 },
+  sectionTitle: { fontSize: 17, fontWeight: '600', color: colors.text, marginBottom: 4 },
+  sectionHint: { fontSize: 12, color: colors.textMuted, marginBottom: 12 },
   card: {
-    backgroundColor: '#FFF', borderRadius: 10,
-    borderWidth: 1, borderColor: '#EBEBEB', padding: 4,
+    backgroundColor: colors.surface, borderRadius: 10,
+    borderWidth: 1, borderColor: colors.border, padding: 4,
   },
   row: {
     flexDirection: 'row', alignItems: 'center',
     paddingVertical: 10, paddingHorizontal: 12,
   },
-  rowBorder: { borderTopWidth: 1, borderTopColor: '#F0F0F0' },
+  rowBorder: { borderTopWidth: 1, borderTopColor: colors.borderLight },
   mcpInfo: { flex: 1 },
-  mcpName: { fontSize: 14, fontWeight: '600', color: '#1a1a1a' },
-  mcpDesc: { fontSize: 12, color: '#888', marginTop: 2 },
-  mcpEnv: { fontSize: 11, color: '#BBB', marginTop: 2 },
+  mcpName: { fontSize: 14, fontWeight: '600', color: colors.text },
+  mcpDesc: { fontSize: 12, color: colors.textSecondary, marginTop: 2 },
+  mcpEnv: { fontSize: 11, color: colors.textMuted, marginTop: 2 },
   removeBtn: { padding: 8 },
-  removeBtnText: { fontSize: 12, color: '#CCC' },
-  emptyText: { padding: 16, fontSize: 13, color: '#999', textAlign: 'center' },
-  addBtn: { padding: 12, borderTopWidth: 1, borderTopColor: '#F0F0F0' },
-  addBtnText: { fontSize: 13, color: colors.primary, fontWeight: '500' },
-  addForm: { padding: 12, borderTopWidth: 1, borderTopColor: '#F0F0F0' },
+  removeBtnText: { fontSize: 12, color: colors.textMuted },
+  emptyText: { padding: 16, fontSize: 13, color: colors.textMuted, textAlign: 'center' },
+  addBtn: { padding: 12, borderTopWidth: 1, borderTopColor: colors.borderLight },
+  addBtnInner: { minHeight: 40, borderRadius: 8 },
+  addBtnText: { fontSize: 13, color: colors.textInverse, fontWeight: '700' },
+  addForm: { padding: 12, borderTopWidth: 1, borderTopColor: colors.borderLight },
   input: {
-    backgroundColor: '#F5F5F5', borderRadius: 8, borderWidth: 1, borderColor: '#E8E8E8',
-    padding: 10, color: '#1a1a1a', fontSize: 13, marginBottom: 8,
+    backgroundColor: colors.inputBg, borderRadius: 8, borderWidth: 1, borderColor: colors.border,
+    padding: 10, color: colors.text, fontSize: 13, marginBottom: 8,
   },
   addFormActions: { flexDirection: 'row', justifyContent: 'flex-end', gap: 8, marginTop: 4 },
   cancelBtn: { padding: 8 },
-  cancelBtnText: { color: '#999', fontSize: 13 },
-  saveBtn: { backgroundColor: colors.primary, paddingHorizontal: 14, paddingVertical: 7, borderRadius: 6 },
-  saveBtnText: { color: '#FFF', fontSize: 13, fontWeight: '600' },
+  cancelBtnText: { color: colors.textMuted, fontSize: 13 },
+  saveBtn: {},
+  saveBtnInner: { minHeight: 34, paddingHorizontal: 14, paddingVertical: 7, borderRadius: 8 },
+  saveBtnText: { color: colors.textInverse, fontSize: 13, fontWeight: '700' },
 });

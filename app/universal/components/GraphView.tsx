@@ -42,7 +42,7 @@ interface SimEdge {
 }
 
 function tagColor(tags: string[]): string {
-  if (!tags.length) return colors.textMuted;
+  if (!tags.length) return colors.graphNodeMuted;
   let hash = 0;
   for (const c of tags[0]) hash = ((hash << 5) - hash + c.charCodeAt(0)) | 0;
   return colors.graph[Math.abs(hash) % colors.graph.length];
@@ -208,7 +208,7 @@ export default function GraphView({ data, onSelectNode, width, height }: Props) 
       }
 
       // Clear
-      ctx.fillStyle = colors.bg;
+      ctx.fillStyle = colors.graphBg;
       ctx.fillRect(0, 0, W, H);
 
       // Transform to camera
@@ -218,7 +218,7 @@ export default function GraphView({ data, onSelectNode, width, height }: Props) 
       ctx.translate(cam.x, cam.y);
 
       // Edges
-      ctx.strokeStyle = colors.border;
+      ctx.strokeStyle = colors.graphEdge;
       ctx.lineWidth = 1 / cam.zoom;
       ctx.beginPath();
       for (const e of edges) {
@@ -234,10 +234,10 @@ export default function GraphView({ data, onSelectNode, width, height }: Props) 
         const isHover = i === hoverRef.current;
         ctx.beginPath();
         ctx.arc(n.x, n.y, n.radius + (isHover ? 2 : 0), 0, Math.PI * 2);
-        ctx.fillStyle = isHover ? n.color : n.color + 'CC';
+        ctx.fillStyle = isHover ? n.color : n.color + 'D8';
         ctx.fill();
         if (isHover) {
-          ctx.strokeStyle = n.color;
+          ctx.strokeStyle = colors.graphRing;
           ctx.lineWidth = 2 / cam.zoom;
           ctx.stroke();
         }
@@ -246,7 +246,7 @@ export default function GraphView({ data, onSelectNode, width, height }: Props) 
       // Labels (only when zoomed in enough or hovered)
       const labelThreshold = 0.7;
       if (cam.zoom > labelThreshold || hoverRef.current >= 0) {
-        ctx.fillStyle = colors.text;
+        ctx.fillStyle = colors.graphLabel;
         ctx.font = `${11 / cam.zoom}px ${font.sans}`;
         ctx.textAlign = 'center';
         for (let i = 0; i < nodes.length; i++) {
@@ -355,6 +355,6 @@ export default function GraphView({ data, onSelectNode, width, height }: Props) 
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.bg },
-  fallback: { flex: 1, backgroundColor: colors.bg },
+  container: { flex: 1, backgroundColor: colors.graphBg },
+  fallback: { flex: 1, backgroundColor: colors.graphBg },
 });

@@ -10,6 +10,7 @@ import {
 import { useConnection } from '../../stores/connection';
 import { useConfig } from '../../stores/config';
 import { setBaseUrl } from '../../services/api';
+import PrimaryButton from '../../components/PrimaryButton';
 
 const PROVIDERS = ['claude-cli', 'claude-api', 'zhipu'];
 const PERMISSION_MODES = ['bypass', 'auto', 'default'];
@@ -87,7 +88,7 @@ export default function ModelScreen() {
           value={modelId}
           onChangeText={setModelId}
           placeholder="claude-sonnet-4-6"
-          placeholderTextColor="#999"
+          placeholderTextColor={colors.textMuted}
         />
 
         {/* Permission Mode */}
@@ -115,7 +116,7 @@ export default function ModelScreen() {
               value={apiKey}
               onChangeText={setApiKey}
               placeholder="${ANTHROPIC_API_KEY}"
-              placeholderTextColor="#999"
+              placeholderTextColor={colors.textMuted}
               secureTextEntry
             />
           </>
@@ -130,44 +131,43 @@ export default function ModelScreen() {
               value={baseUrl}
               onChangeText={setBaseUrl_}
               placeholder="https://api.z.ai/api/paas/v4"
-              placeholderTextColor="#999"
+              placeholderTextColor={colors.textMuted}
             />
           </>
         )}
 
         {/* Save */}
-        <TouchableOpacity style={styles.saveBtn} onPress={handleSave}>
+        <PrimaryButton style={styles.saveBtn} onPress={handleSave}>
           <Text style={styles.saveBtnText}>
             {saved ? '✓ Saved (restart required)' : 'Save'}
           </Text>
-        </TouchableOpacity>
+        </PrimaryButton>
       </View>
     </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#FAFAFA' },
+  container: { flex: 1, backgroundColor: colors.bg },
   content: { padding: 24, maxWidth: 500, width: "100%", alignSelf: "center" },
-  title: { fontSize: 17, fontWeight: '600', color: '#1a1a1a', marginBottom: 4 },
-  hint: { fontSize: 12, color: '#999', marginBottom: 16 },
+  title: { fontSize: 17, fontWeight: '600', color: colors.text, marginBottom: 4 },
+  hint: { fontSize: 12, color: colors.textMuted, marginBottom: 16 },
   card: {
-    backgroundColor: '#FFF', borderRadius: 10,
-    borderWidth: 1, borderColor: '#EBEBEB', padding: 16,
+    backgroundColor: colors.surface, borderRadius: 10,
+    borderWidth: 1, borderColor: colors.border, padding: 16,
   },
-  label: { fontSize: 12, fontWeight: '600', color: '#666', marginTop: 16, marginBottom: 6 },
+  label: { fontSize: 12, fontWeight: '600', color: colors.textSecondary, marginTop: 16, marginBottom: 6 },
   input: {
-    backgroundColor: '#F5F5F5', borderRadius: 8, borderWidth: 1, borderColor: '#E8E8E8',
-    padding: 10, color: '#1a1a1a', fontSize: 14,
+    backgroundColor: colors.inputBg, borderRadius: 8, borderWidth: 1, borderColor: colors.border,
+    padding: 10, color: colors.text, fontSize: 14,
   },
-  segmented: { flexDirection: 'row', borderRadius: 8, overflow: 'hidden', borderWidth: 1, borderColor: '#E8E8E8' },
-  segment: { flex: 1, paddingVertical: 8, alignItems: 'center', backgroundColor: '#F5F5F5' },
+  segmented: { flexDirection: 'row', borderRadius: 8, overflow: 'hidden', borderWidth: 1, borderColor: colors.border },
+  segment: { flex: 1, paddingVertical: 8, alignItems: 'center', backgroundColor: colors.inputBg },
   segmentActive: { backgroundColor: colors.primary },
-  segmentText: { fontSize: 12, color: '#666', fontWeight: '500' },
-  segmentTextActive: { color: '#FFF' },
+  segmentText: { fontSize: 12, color: colors.textSecondary, fontWeight: '500' },
+  segmentTextActive: { color: colors.textInverse },
   saveBtn: {
-    backgroundColor: colors.primary, borderRadius: 8, padding: 12,
-    alignItems: 'center', marginTop: 20,
+    marginTop: 20,
   },
-  saveBtnText: { color: '#FFF', fontSize: 14, fontWeight: '600' },
+  saveBtnText: { color: colors.textInverse, fontSize: 14, fontWeight: '700' },
 });

@@ -9,6 +9,7 @@ import {
 import { useConnection } from '../../stores/connection';
 import { useChat } from '../../stores/chat';
 import Markdown from '../../components/Markdown';
+import PrimaryButton from '../../components/PrimaryButton';
 import ResponsiveSidebar from '../../components/ResponsiveSidebar';
 import { uploadFile } from '../../services/api';
 import { colors } from '../../theme';
@@ -136,9 +137,9 @@ export default function ChatScreen() {
 
   const sidebarContent = (
     <View style={styles.sidebarInner}>
-      <TouchableOpacity style={styles.newChatBtn} onPress={createSession}>
+      <PrimaryButton style={styles.newChatBtn} onPress={createSession}>
         <Text style={styles.newChatText}>+ New Chat</Text>
-      </TouchableOpacity>
+      </PrimaryButton>
       <ScrollView style={styles.sessionList}>
         {sessions.map((ses) => (
           <TouchableOpacity
@@ -210,10 +211,10 @@ export default function ChatScreen() {
                   placeholder="Send a message..."
                   rows={1}
                   style={{
-                    flex: 1, backgroundColor: '#F5F5F5', borderRadius: 20,
-                    border: '1px solid #E8E8E8',
+                    flex: 1, backgroundColor: colors.inputBg, borderRadius: 20,
+                    border: `1px solid ${colors.border}`,
                     paddingLeft: 16, paddingRight: 16, paddingTop: 10, paddingBottom: 10,
-                    color: '#1a1a1a', fontSize: 14,
+                    color: colors.text, fontSize: 14,
                     fontFamily: '-apple-system, BlinkMacSystemFont, sans-serif',
                     maxHeight: 120, resize: 'none', outline: 'none',
                   } as any}
@@ -222,17 +223,18 @@ export default function ChatScreen() {
                 <TextInput
                   style={styles.textInput}
                   value={input} onChangeText={setInput}
-                  placeholder="Send a message..." placeholderTextColor="#999"
+                  placeholder="Send a message..." placeholderTextColor={colors.textMuted}
                   onSubmitEditing={handleSend} returnKeyType="send" multiline
                 />
               )}
-              <TouchableOpacity
+              <PrimaryButton
                 style={[styles.sendBtn, (!input.trim() && !pendingFile) && styles.sendBtnDisabled]}
+                contentStyle={styles.sendBtnInner}
                 onPress={handleSend}
                 disabled={(!input.trim() && !pendingFile) || activeSession.isProcessing}
               >
                 <Text style={styles.sendText}>↑</Text>
-              </TouchableOpacity>
+              </PrimaryButton>
             </View>
           </>
         ) : (
@@ -247,39 +249,39 @@ export default function ChatScreen() {
 
 const styles = StyleSheet.create({
   sidebarInner: { flex: 1, padding: 16 },
-  newChatBtn: { backgroundColor: colors.primary, borderRadius: 8, padding: 10, alignItems: 'center', marginBottom: 16 },
-  newChatText: { color: '#FFF', fontWeight: '600', fontSize: 13 },
+  newChatBtn: { marginBottom: 16 },
+  newChatText: { color: colors.textInverse, fontWeight: '700', fontSize: 13 },
   sessionList: { flex: 1 },
   sessionItem: { padding: 10, borderRadius: 8, marginBottom: 2, flexDirection: 'row', alignItems: 'center' },
-  sessionActive: { backgroundColor: '#EBEBEB' },
-  sessionTitle: { color: '#444', flex: 1, fontSize: 13 },
+  sessionActive: { backgroundColor: colors.primaryLight },
+  sessionTitle: { color: colors.textSecondary, flex: 1, fontSize: 13 },
   processingDot: { color: colors.primary, fontSize: 10, marginLeft: 6 },
 
-  chatArea: { flex: 1, flexDirection: 'column', backgroundColor: '#FAFAFA' },
+  chatArea: { flex: 1, flexDirection: 'column', backgroundColor: colors.bg },
   messages: { flex: 1 },
   messagesContent: { padding: 24, paddingBottom: 8 },
   bubble: { maxWidth: '75%', borderRadius: 12, padding: 14, marginBottom: 10 },
   userBubble: { backgroundColor: colors.primary, alignSelf: 'flex-end' },
-  assistantBubble: { backgroundColor: '#FFF', alignSelf: 'flex-start', borderWidth: 1, borderColor: '#EBEBEB' },
+  assistantBubble: { backgroundColor: colors.surface, alignSelf: 'flex-start', borderWidth: 1, borderColor: colors.border },
   statusBubble: { backgroundColor: 'transparent', alignSelf: 'flex-start', padding: 8 },
-  bubbleText: { color: '#1a1a1a', fontSize: 14, lineHeight: 21 },
-  userText: { color: '#FFF' },
-  statusText: { color: '#999', fontSize: 13, fontStyle: 'italic' },
+  bubbleText: { color: colors.text, fontSize: 14, lineHeight: 21 },
+  userText: { color: colors.textInverse },
+  statusText: { color: colors.textMuted, fontSize: 13, fontStyle: 'italic' },
 
   // Pending file
   pendingBar: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
     paddingHorizontal: 20, paddingVertical: 6,
-    backgroundColor: colors.primaryLight, borderTopWidth: 1, borderTopColor: '#EBEBEB',
+    backgroundColor: colors.primaryLight, borderTopWidth: 1, borderTopColor: colors.border,
   },
   pendingText: { fontSize: 12, color: colors.primary, fontWeight: '500' },
-  pendingRemove: { fontSize: 14, color: '#999', padding: 4 },
+  pendingRemove: { fontSize: 14, color: colors.textMuted, padding: 4 },
 
   // Input
   inputBar: {
     flexDirection: 'row', alignItems: 'flex-end',
     padding: 12, paddingHorizontal: 16,
-    borderTopWidth: 1, borderTopColor: '#EBEBEB', backgroundColor: '#FFF',
+    borderTopWidth: 1, borderTopColor: colors.border, backgroundColor: colors.surface,
   },
   iconBtn: {
     width: 36, height: 36, borderRadius: 18,
@@ -288,16 +290,19 @@ const styles = StyleSheet.create({
   iconBtnActive: { backgroundColor: colors.primary },
   iconBtnText: { fontSize: 18 },
   textInput: {
-    flex: 1, backgroundColor: '#F5F5F5', borderRadius: 20,
-    borderWidth: 1, borderColor: '#E8E8E8',
-    paddingHorizontal: 16, paddingVertical: 10, color: '#1a1a1a', fontSize: 14, maxHeight: 120,
+    flex: 1, backgroundColor: colors.inputBg, borderRadius: 20,
+    borderWidth: 1, borderColor: colors.border,
+    paddingHorizontal: 16, paddingVertical: 10, color: colors.text, fontSize: 14, maxHeight: 120,
   },
   sendBtn: {
-    backgroundColor: colors.primary, width: 36, height: 36, borderRadius: 18,
-    alignItems: 'center', justifyContent: 'center', marginLeft: 8,
+    width: 36, height: 36, borderRadius: 18, marginLeft: 8,
+  },
+  sendBtnInner: {
+    minHeight: 36, width: 36, height: 36, borderRadius: 18,
+    paddingHorizontal: 0, paddingVertical: 0,
   },
   sendBtnDisabled: { opacity: 0.3 },
-  sendText: { color: '#fff', fontSize: 16, fontWeight: '700' },
+  sendText: { color: colors.textInverse, fontSize: 16, fontWeight: '700' },
   emptyState: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  emptyText: { color: '#999', fontSize: 15 },
+  emptyText: { color: colors.textMuted, fontSize: 15 },
 });
