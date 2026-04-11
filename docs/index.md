@@ -9,7 +9,7 @@ hero:
     src: /brand/openagent-logo.png
     alt: OpenAgent
   actions:
-    - theme: brand
+    - theme: alt
       text: Get It Now
       link: /downloads
     - theme: alt
