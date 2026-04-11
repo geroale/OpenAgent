@@ -17,7 +17,7 @@ const isDev = !app.isPackaged;
 app.setAboutPanelOptions({
   applicationName: 'OpenAgent',
   applicationVersion: app.getVersion(),
-  website: 'https://geroale.github.io/OpenAgent/',
+  website: 'https://openagent.uno/',
 });
 
 if (process.platform === 'win32') {

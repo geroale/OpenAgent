@@ -4,10 +4,10 @@
   "version": "0.3.4",
   "private": true,
   "productName": "OpenAgent",
-  "homepage": "https://geroale.github.io/OpenAgent/",
+  "homepage": "https://openagent.uno/",
   "author": {
     "name": "OpenAgent",
-    "url": "https://geroale.github.io/OpenAgent/"
+    "url": "https://openagent.uno/"
   },
   "main": "dist/main.js",
   "scripts": {
