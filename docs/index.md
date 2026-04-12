@@ -9,9 +9,6 @@ hero:
     src: /brand/openagent-logo.png
     alt: OpenAgent
   actions:
-    - theme: brand
-      text: Open the Web App
-      link: https://openagent.uno/app/
     - theme: alt
       text: Get It Now
       link: /downloads
