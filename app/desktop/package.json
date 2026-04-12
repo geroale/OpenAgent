@@ -53,6 +53,10 @@
       "repo": "OpenAgent"
     },
     "mac": {
+      "hardenedRuntime": true,
+      "gatekeeperAssess": false,
+      "entitlements": "buildResources/entitlements.mac.plist",
+      "entitlementsInherit": "buildResources/entitlements.mac.inherit.plist",
       "notarize": true,
       "target": [
         {
