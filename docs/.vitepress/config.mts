@@ -53,7 +53,6 @@ export default defineConfig({
       { text: "Web App", link: "https://openagent.uno/app/" },
       { text: "Docs", link: "/guide/" },
       { text: "Examples", link: "/examples/" },
-      { text: "GitHub", link: repo },
     ],
     sidebar: {
       "/guide/": [
