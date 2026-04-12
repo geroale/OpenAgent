@@ -1,12 +1,13 @@
 # Downloads
 
-OpenAgent ships as **three independent downloads**:
+OpenAgent offers **four access surfaces**:
 
-1. **Agent Server**: the persistent runtime in `openagent/`, installed on the machine that should actually run the agent, channels, memory, scheduler, and auto-updater.
-2. **CLI Client**: a separate terminal client that connects to any running OpenAgent Gateway.
-3. **Desktop App**: the Electron UI for chat, MCPs, memory, and configuration.
+1. **Web App** (hosted): a zero-install browser UI at [openagent.uno/app](https://openagent.uno/app/), built from the same React Native codebase as the Desktop App.
+2. **Agent Server**: the persistent runtime in `openagent/`, installed on the machine that should actually run the agent, channels, memory, scheduler, and auto-updater.
+3. **CLI Client**: a separate terminal client that connects to any running OpenAgent Gateway.
+4. **Desktop App**: the Electron UI for chat, MCPs, memory, and configuration.
 
-They are not bundled into one installer. In most setups you install the Agent Server on the host that will actually run OpenAgent, then add the CLI Client or the Desktop App on your workstation.
+They are not bundled into one installer. In most setups you install the Agent Server on the host that will actually run OpenAgent, then reach it from the Web App in the browser, the CLI Client in a terminal, or the Desktop App on your workstation.
 
 <div class="brand-section">
 
@@ -18,16 +19,26 @@ They are not bundled into one installer. In most setups you install the Agent Se
     <p>Required if you want OpenAgent itself to run. This is the only component that talks to models, MCP servers, memory, channels, and the scheduler.</p>
   </div>
   <div class="brand-flow-step">
-    <strong>2. Add a client</strong>
-    <p>Install the CLI Client for terminal workflows, the Desktop App for visual control, or both. Neither one replaces the server.</p>
+    <strong>2. Pick a client</strong>
+    <p>Open the hosted <a href="https://openagent.uno/app/">Web App</a> for zero-install access, install the CLI Client for terminal workflows, or install the Desktop App for a native window. None of them replaces the server.</p>
   </div>
   <div class="brand-flow-step">
     <strong>3. Connect to the same Gateway</strong>
-    <p>Both clients connect to a running OpenAgent Gateway over WebSocket, so the runtime stays centralized while the access surface stays flexible.</p>
+    <p>Every client connects to a running OpenAgent Gateway over WebSocket, so the runtime stays centralized while the access surface stays flexible.</p>
   </div>
 </div>
 
 </div>
+
+## Web App
+
+Nothing to download — the Web App is hosted.
+
+- Open [openagent.uno/app](https://openagent.uno/app/) in any modern browser.
+- Point it at a running Agent Server (same settings as the Desktop App).
+- It is the exact same React Native codebase that powers the Desktop App, exported for the web via Expo.
+
+Use the Web App when you want the OpenAgent UI on a machine where you cannot (or do not want to) install a native binary — a shared workstation, a tablet, a colleague's laptop.
 
 ## Agent Server
 

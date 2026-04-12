@@ -1,9 +1,10 @@
 # Documentation
 
-OpenAgent is model agnostic by design and ships as three independent apps: the Agent Server, the CLI Client, and the Desktop App. The Agent Server runs the actual runtime; the CLI and Desktop App are separate clients that connect to it.
+OpenAgent is model agnostic by design and offers four access surfaces: a hosted Web App plus three independent installable apps (Agent Server, CLI Client, Desktop App). The Agent Server runs the actual runtime; the Web App, CLI, and Desktop App are separate clients that connect to it.
 
 ## Start Here
 
+- [Open the Web App](https://openagent.uno/app/)
 - [Downloads](../downloads.md)
 - [Apps & Distribution](./apps.md)
 - [Getting Started](./getting-started.md)

@@ -4,11 +4,14 @@ layout: home
 hero:
   name: OpenAgent
   text: Persistent agents for any model
-  tagline: Run OpenAgent with Claude, GLM, Ollama, LM Studio, vLLM, or any OpenAI-compatible provider, then install the Agent Server, CLI Client, and Desktop App as separate downloads.
+  tagline: Run OpenAgent with Claude, GLM, Ollama, LM Studio, vLLM, or any OpenAI-compatible provider. Use the hosted Web App straight from your browser, or install the Agent Server, CLI Client, and Desktop App as separate downloads.
   image:
     src: /brand/openagent-logo.png
     alt: OpenAgent
   actions:
+    - theme: brand
+      text: Open the Web App
+      link: https://openagent.uno/app/
     - theme: alt
       text: Get It Now
       link: /downloads
@@ -30,17 +33,22 @@ features:
     details: Expose the same agent through Telegram, Discord, WhatsApp, desktop, and CLI with recurring tasks, stop controls, and status updates.
   - title: Obsidian-native memory
     details: Notes stay as plain markdown with wikilinks and frontmatter, so the vault is inspectable, portable, and easy to open in Obsidian.
-  - title: Three independent apps
-    details: Install the Agent Server where the runtime should live, then add the CLI Client or Desktop App separately from GitHub Releases.
+  - title: Four access surfaces
+    details: Open the hosted Web App in any browser, or install the Agent Server where the runtime should live and add the CLI Client or Desktop App separately from GitHub Releases.
 ---
 
 <div class="brand-section">
 
-## Start with the right download
+## Pick your surface
 
-OpenAgent is one system, but you install each surface independently. Most setups run the Agent Server on the host where the agent should live, then add either the CLI Client or the Desktop App from a separate download.
+OpenAgent is one system with multiple ways in. Open the hosted Web App for an instant, zero-install entry point, or install the Agent Server on the host that should own the runtime and add the CLI Client or the Desktop App as separate downloads.
 
 <div class="brand-grid">
+  <div class="brand-card">
+    <h3>Web App</h3>
+    <p>The React Native Web build of the OpenAgent UI, hosted at <a href="https://openagent.uno/app/">openagent.uno/app</a>. No install — open it in any browser and point it at a running Agent Server.</p>
+    <p><a href="https://openagent.uno/app/">Open the web app</a></p>
+  </div>
   <div class="brand-card">
     <h3>Agent Server</h3>
     <p>The persistent runtime in <code>openagent/</code>. This is the actual agent process with models, MCP tools, memory, channels, scheduler, and install or auto-update behavior.</p>
@@ -59,6 +67,7 @@ OpenAgent is one system, but you install each surface independently. Most setups
 </div>
 
 <div class="brand-inline-links">
+  <a href="https://openagent.uno/app/">Open the web app</a>
   <a href="/downloads">Open all downloads</a>
   <a href="/guide/apps">Apps & distribution guide</a>
   <a href="/guide/getting-started">Install the Agent Server</a>
@@ -78,7 +87,7 @@ OpenAgent is one system, but you install each surface independently. Most setups
   </div>
   <div class="brand-flow-step">
     <strong>2. Pick your client</strong>
-    <p>Use the CLI Client for terminal-first operations, the Desktop App for visual control, or both.</p>
+    <p>Open the hosted Web App in any browser, use the CLI Client for terminal-first operations, or install the Desktop App for a native window — pick one or combine them.</p>
   </div>
   <div class="brand-flow-step">
     <strong>3. Change models without changing the system</strong>

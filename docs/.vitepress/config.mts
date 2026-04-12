@@ -50,6 +50,7 @@ export default defineConfig({
     nav: [
       { text: "Home", link: "/" },
       { text: "Downloads", link: "/downloads" },
+      { text: "Web App", link: "https://openagent.uno/app/" },
       { text: "Docs", link: "/guide/" },
       { text: "Examples", link: "/examples/" },
       { text: "GitHub", link: repo },
