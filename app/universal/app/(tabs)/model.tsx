@@ -19,29 +19,6 @@ import type { UsageData, ModelCatalogEntry, DailyUsageEntry, ModelConfig } from 
 
 const KNOWN_PROVIDERS = ['anthropic', 'openai', 'google', 'z.ai', 'ollama'];
 
-// Fallback catalog when the /api/models/catalog endpoint isn't available
-const STATIC_CATALOG: Record<string, ModelCatalogEntry[]> = {
-  anthropic: [
-    { model_id: 'anthropic/claude-opus-4-6', input_cost_per_million: 5, output_cost_per_million: 25 },
-    { model_id: 'anthropic/claude-sonnet-4-6', input_cost_per_million: 3, output_cost_per_million: 15 },
-    { model_id: 'anthropic/claude-haiku-4-5', input_cost_per_million: 1, output_cost_per_million: 5 },
-  ],
-  openai: [
-    { model_id: 'openai/o3', input_cost_per_million: 10, output_cost_per_million: 40 },
-    { model_id: 'openai/gpt-4o', input_cost_per_million: 2.5, output_cost_per_million: 10 },
-    { model_id: 'openai/gpt-4o-mini', input_cost_per_million: 0.15, output_cost_per_million: 0.6 },
-    { model_id: 'openai/chatgpt-4o-latest', input_cost_per_million: 2.5, output_cost_per_million: 10 },
-  ],
-  google: [
-    { model_id: 'google/gemini-2.5-pro', input_cost_per_million: 1.25, output_cost_per_million: 10 },
-    { model_id: 'google/gemini-2.5-flash', input_cost_per_million: 0.15, output_cost_per_million: 0.6 },
-  ],
-  'z.ai': [
-    { model_id: 'zhipu/glm-5', input_cost_per_million: 1, output_cost_per_million: 5 },
-    { model_id: 'zhipu/glm-4-plus', input_cost_per_million: 0.5, output_cost_per_million: 2.5 },
-  ],
-};
-
 export default function ModelScreen() {
   const connConfig = useConnection((s) => s.config);
   const { config: agentConfig, loadConfig } = useConfig();
@@ -104,14 +81,8 @@ export default function ModelScreen() {
       const models = await getModelCatalog(provider);
       if (models && models.length > 0) {
         setCatalogCache((prev) => ({ ...prev, [provider]: models }));
-        return;
       }
     } catch {}
-    // Fallback to static catalog
-    const fallback = STATIC_CATALOG[provider];
-    if (fallback) {
-      setCatalogCache((prev) => ({ ...prev, [provider]: fallback }));
-    }
   };
 
   useEffect(() => {
@@ -130,18 +101,26 @@ export default function ModelScreen() {
       if (newKey.trim()) entry.api_key = newKey.trim();
       if (newUrl.trim()) entry.base_url = newUrl.trim();
 
-      // Auto-populate models list from catalog
-      const catalog = STATIC_CATALOG[newName] || [];
-      const modelIds = catalog.map((m) => m.model_id.split('/').pop()!);
-      // For Anthropic, add claude-cli
-      if (newName === 'anthropic') {
-        if (newUseCli) modelIds.unshift('claude-cli');
+      // Fetch available models dynamically from litellm catalog
+      const modelIds: string[] = [];
+      try {
+        const catalog = await getModelCatalog(newName);
+        for (const m of catalog) {
+          modelIds.push(m.model_id.split('/').pop()!);
+        }
+      } catch {}
+
+      // For Anthropic, add claude-cli option
+      if (newName === 'anthropic' && newUseCli) {
+        modelIds.unshift('claude-cli');
       }
       if (modelIds.length > 0) entry.models = modelIds;
 
       await addModel(newName.trim(), entry);
       setAdding(false);
       setNewName(''); setNewKey(''); setNewUrl(''); setNewUseCli(false);
+      // Clear catalog cache so it reloads
+      setCatalogCache((prev) => { const c = { ...prev }; delete c[newName]; return c; });
       await reload();
     } catch (e: any) {
       alert(`Failed to add provider: ${e.message}`);
