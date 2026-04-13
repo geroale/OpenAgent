@@ -35,10 +35,9 @@ export default function ModelScreen() {
   const [newKey, setNewKey] = useState('');
   const [newUrl, setNewUrl] = useState('');
 
-  // Mode
-  const [mode, setMode] = useState<'smart' | 'single'>('smart');
-  const [singleModelId, setSingleModelId] = useState('');
   const [budget, setBudget] = useState('20');
+  // Per-provider disabled models
+  const [disabledModels, setDisabledModels] = useState<Record<string, string[]>>({});
 
   // Usage
   const [usage, setUsage] = useState<UsageData | null>(null);
@@ -60,10 +59,13 @@ export default function ModelScreen() {
       const data = await getModels();
       setProviders(data.models || {});
       setActive(data.active || null);
-      if (data.active?.provider === 'smart') setMode('smart');
-      else setMode('single');
-      if (data.active?.model_id) setSingleModelId(data.active.model_id);
       if (data.active?.monthly_budget) setBudget(String(data.active.monthly_budget));
+      // Load disabled_models per provider
+      const dm: Record<string, string[]> = {};
+      for (const [name, cfg] of Object.entries(data.models || {})) {
+        dm[name] = (cfg as any).disabled_models || [];
+      }
+      setDisabledModels(dm);
     } catch {}
     getUsage().then(setUsage).catch(() => {});
     getDailyUsage(costDays).then(setDailyUsage).catch(() => {});
@@ -113,56 +115,41 @@ export default function ModelScreen() {
     setTestingProv(null);
   };
 
-  const handleSaveMode = async () => {
-    let model: ModelConfig;
-    if (mode === 'smart') {
-      model = { provider: 'smart', monthly_budget: parseFloat(budget) || 20 };
-    } else if (singleModelId === 'claude-cli') {
-      model = { provider: 'claude-cli', model_id: 'claude-sonnet-4-6', permission_mode: 'bypass' };
-    } else {
-      model = { provider: 'litellm', model_id: singleModelId };
-    }
+  const handleSave = async () => {
+    const model: ModelConfig = { provider: 'smart', monthly_budget: parseFloat(budget) || 20 };
     await setActiveModel(model);
     setSaved(true);
     setTimeout(() => setSaved(false), 3000);
+  };
+
+  const toggleModel = async (providerName: string, modelId: string) => {
+    const current = disabledModels[providerName] || [];
+    const isDisabled = current.includes(modelId);
+    const updated = isDisabled
+      ? current.filter((m) => m !== modelId)
+      : [...current, modelId];
+
+    setDisabledModels((prev) => ({ ...prev, [providerName]: updated }));
+
+    // Save to backend
+    try {
+      await updateModel(providerName, { disabled_models: updated } as any);
+    } catch {}
   };
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
       <Text style={styles.title}>Models</Text>
 
-      {/* Mode Selector */}
-      <View style={styles.modeRow}>
-        <TouchableOpacity style={[styles.modeBtn, mode === 'smart' && styles.modeBtnActive]} onPress={() => setMode('smart')}>
-          <Text style={[styles.modeBtnText, mode === 'smart' && styles.modeBtnTextActive]}>Smart Routing</Text>
-          <Text style={styles.modeHint}>Auto-picks by task + price</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={[styles.modeBtn, mode === 'single' && styles.modeBtnActive]} onPress={() => setMode('single')}>
-          <Text style={[styles.modeBtnText, mode === 'single' && styles.modeBtnTextActive]}>Single Model</Text>
-          <Text style={styles.modeHint}>One model for everything</Text>
-        </TouchableOpacity>
+      <Text style={styles.hint}>Smart routing auto-picks the best model by task difficulty and price. Enable/disable models below.</Text>
+
+      <View style={styles.singleRow}>
+        <Text style={styles.label}>Monthly Budget ($)</Text>
+        <TextInput style={styles.input} value={budget} onChangeText={setBudget}
+          placeholder="20.00" placeholderTextColor={colors.textMuted} keyboardType="numeric" />
       </View>
 
-      {mode === 'single' && (
-        <View style={styles.singleRow}>
-          <Text style={styles.label}>Model ID</Text>
-          <TextInput style={styles.input} value={singleModelId} onChangeText={setSingleModelId}
-            placeholder="anthropic/claude-sonnet-4-6 or claude-cli" placeholderTextColor={colors.textMuted} />
-          {singleModelId === 'claude-cli' && (
-            <Text style={styles.cliHint}>Uses Claude Pro/Max subscription. No API key needed.</Text>
-          )}
-        </View>
-      )}
-
-      {mode === 'smart' && (
-        <View style={styles.singleRow}>
-          <Text style={styles.label}>Monthly Budget ($)</Text>
-          <TextInput style={styles.input} value={budget} onChangeText={setBudget}
-            placeholder="20.00" placeholderTextColor={colors.textMuted} keyboardType="numeric" />
-        </View>
-      )}
-
-      <PrimaryButton style={{ marginBottom: 20 }} onPress={handleSaveMode}>
+      <PrimaryButton style={{ marginBottom: 20 }} onPress={handleSave}>
         <Text style={styles.saveBtnText}>{saved ? 'Saved (restart required)' : 'Save'}</Text>
       </PrimaryButton>
 
@@ -214,30 +201,43 @@ export default function ModelScreen() {
               </Text>
             )}
 
-            {/* Model list from catalog */}
+            {/* Model list with enable/disable toggles */}
             {catalog.length > 0 && (
               <View style={styles.modelList}>
-                {catalog.slice(0, 10).map((m) => (
-                  <View key={m.model_id} style={styles.modelRow}>
-                    <Text style={styles.modelId}>{m.model_id.replace(`${name}/`, '')}</Text>
-                    <Text style={styles.modelPrice}>
-                      ${m.input_cost_per_million}/M in  ${m.output_cost_per_million}/M out
-                    </Text>
-                  </View>
-                ))}
-                {catalog.length > 10 && (
-                  <Text style={styles.moreModels}>+{catalog.length - 10} more</Text>
+                {catalog.slice(0, 15).map((m) => {
+                  const shortId = m.model_id.replace(`${name}/`, '');
+                  const disabled = (disabledModels[name] || []).includes(shortId);
+                  return (
+                    <TouchableOpacity key={m.model_id} style={styles.modelRow} onPress={() => toggleModel(name, shortId)}>
+                      <View style={styles.modelToggle}>
+                        <View style={[styles.toggleDot, disabled ? styles.toggleOff : styles.toggleOn]} />
+                        <Text style={[styles.modelId, disabled && styles.modelDisabled]}>{shortId}</Text>
+                      </View>
+                      <Text style={[styles.modelPrice, disabled && styles.modelDisabled]}>
+                        ${m.input_cost_per_million}/M in  ${m.output_cost_per_million}/M out
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+                {catalog.length > 15 && (
+                  <Text style={styles.moreModels}>+{catalog.length - 15} more</Text>
                 )}
               </View>
             )}
 
             {/* Claude CLI special entry for Anthropic */}
-            {name === 'anthropic' && (
-              <View style={styles.modelRow}>
-                <Text style={styles.modelId}>claude-cli (subscription)</Text>
-                <Text style={[styles.modelPrice, { color: '#2ecc71' }]}>$0 flat</Text>
-              </View>
-            )}
+            {name === 'anthropic' && (() => {
+              const disabled = (disabledModels[name] || []).includes('claude-cli');
+              return (
+                <TouchableOpacity style={styles.modelRow} onPress={() => toggleModel(name, 'claude-cli')}>
+                  <View style={styles.modelToggle}>
+                    <View style={[styles.toggleDot, disabled ? styles.toggleOff : styles.toggleOn]} />
+                    <Text style={[styles.modelId, disabled && styles.modelDisabled]}>claude-cli (subscription)</Text>
+                  </View>
+                  <Text style={[styles.modelPrice, disabled && styles.modelDisabled, !disabled && { color: '#2ecc71' }]}>$0 flat</Text>
+                </TouchableOpacity>
+              );
+            })()}
           </View>
         );
       })}
@@ -344,16 +344,8 @@ const styles = StyleSheet.create({
   title: { fontSize: 17, fontWeight: '600', color: colors.text, marginBottom: 12 },
   sectionTitle: { fontSize: 13, fontWeight: '600', color: colors.textMuted, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 8 },
 
-  // Mode selector
-  modeRow: { flexDirection: 'row', gap: 10, marginBottom: 12 },
-  modeBtn: { flex: 1, padding: 14, borderRadius: 10, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface },
-  modeBtnActive: { borderColor: colors.primary, backgroundColor: colors.primary + '15' },
-  modeBtnText: { fontSize: 14, fontWeight: '600', color: colors.textSecondary },
-  modeBtnTextActive: { color: colors.primary },
-  modeHint: { fontSize: 11, color: colors.textMuted, marginTop: 2 },
-
   singleRow: { marginBottom: 12 },
-  cliHint: { fontSize: 11, color: colors.textMuted, marginTop: 8, lineHeight: 16 },
+  hint: { fontSize: 12, color: colors.textMuted, marginBottom: 12 },
 
   label: { fontSize: 12, fontWeight: '600', color: colors.textSecondary, marginBottom: 4, marginTop: 8 },
   input: {
@@ -383,8 +375,13 @@ const styles = StyleSheet.create({
 
   // Model list in card
   modelList: { marginTop: 10, borderTopWidth: 1, borderTopColor: colors.borderLight, paddingTop: 8 },
-  modelRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 4 },
+  modelRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 6 },
+  modelToggle: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  toggleDot: { width: 10, height: 10, borderRadius: 5 },
+  toggleOn: { backgroundColor: '#2ecc71' },
+  toggleOff: { backgroundColor: colors.border },
   modelId: { fontSize: 13, color: colors.text },
+  modelDisabled: { color: colors.textMuted, opacity: 0.5 },
   modelPrice: { fontSize: 11, color: colors.textMuted },
   moreModels: { fontSize: 11, color: colors.textMuted, textAlign: 'center', marginTop: 4 },
 
