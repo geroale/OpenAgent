@@ -32,6 +32,7 @@ export default function ModelScreen() {
 
   // Add provider form
   const [adding, setAdding] = useState(false);
+  const [addingModelFor, setAddingModelFor] = useState<string | null>(null); // provider name
   const [newName, setNewName] = useState('');
   const [newKey, setNewKey] = useState('');
   const [newUrl, setNewUrl] = useState('');
@@ -74,29 +75,13 @@ export default function ModelScreen() {
     getDailyUsage(costDays).then(setDailyUsage).catch(() => {});
   };
 
-  // Load catalog for a provider — also backfill models in YAML if empty
+  // Load catalog for pricing info only — never auto-saves models
   const loadCatalog = async (provider: string) => {
     if (catalogCache[provider]) return;
     try {
       const models = await getModelCatalog(provider);
       if (models && models.length > 0) {
         setCatalogCache((prev) => ({ ...prev, [provider]: models }));
-
-        // If this provider has no models in YAML yet, save them
-        const cfgModels = (providers[provider] as any)?.models;
-        if (!cfgModels || cfgModels.length === 0) {
-          const modelIds = models.slice(0, 20).map((m) => m.model_id.replace(`${provider}/`, ''));
-          // For anthropic, prepend claude-cli
-          if (provider === 'anthropic') modelIds.unshift('claude-cli');
-          try {
-            await updateModel(provider, { models: modelIds });
-            // Update local state
-            setProviders((prev) => ({
-              ...prev,
-              [provider]: { ...prev[provider], models: modelIds },
-            }));
-          } catch {}
-        }
       }
     } catch {}
   };
@@ -117,18 +102,10 @@ export default function ModelScreen() {
       if (newKey.trim()) entry.api_key = newKey.trim();
       if (newUrl.trim()) entry.base_url = newUrl.trim();
 
-      // Fetch available models dynamically from litellm catalog
+      // Start with empty models list — user adds models explicitly via "Add Model"
       const modelIds: string[] = [];
-      try {
-        const catalog = await getModelCatalog(newName);
-        for (const m of catalog) {
-          modelIds.push(m.model_id.split('/').pop()!);
-        }
-      } catch {}
-
-      // For Anthropic, add claude-cli option
       if (newName === 'anthropic' && newUseCli) {
-        modelIds.unshift('claude-cli');
+        modelIds.push('claude-cli');
       }
       if (modelIds.length > 0) entry.models = modelIds;
 
@@ -167,6 +144,32 @@ export default function ModelScreen() {
     await setActiveModel(model);
     setSaved(true);
     setTimeout(() => setSaved(false), 3000);
+  };
+
+  const addModelToProvider = async (providerName: string, modelId: string) => {
+    const current = (providers[providerName] as any)?.models || [];
+    if (current.includes(modelId)) return;
+    const updated = [...current, modelId];
+    try {
+      await updateModel(providerName, { models: updated });
+      setProviders((prev) => ({
+        ...prev,
+        [providerName]: { ...prev[providerName], models: updated },
+      }));
+    } catch {}
+    setAddingModelFor(null);
+  };
+
+  const removeModelFromProvider = async (providerName: string, modelId: string) => {
+    const current: string[] = (providers[providerName] as any)?.models || [];
+    const updated = current.filter((m) => m !== modelId);
+    try {
+      await updateModel(providerName, { models: updated });
+      setProviders((prev) => ({
+        ...prev,
+        [providerName]: { ...prev[providerName], models: updated },
+      }));
+    } catch {}
   };
 
   const toggleModel = async (providerName: string, modelId: string) => {
@@ -220,7 +223,7 @@ export default function ModelScreen() {
       <Text style={[styles.sectionTitle, { marginTop: 16 }]}>Providers</Text>
 
       {Object.entries(providers).map(([name, cfg]) => {
-        // Build model list: use YAML config models as source of truth, enrich with catalog pricing
+        // Only show models explicitly added by the user (from YAML config)
         const configModels: string[] = (cfg as any).models || [];
         const catalog = catalogCache[name] || [];
         const catalogMap: Record<string, ModelCatalogEntry> = {};
@@ -228,11 +231,6 @@ export default function ModelScreen() {
           const short = m.model_id.replace(`${name}/`, '');
           catalogMap[short] = m;
         }
-        // All models to show: from config + any catalog models not in config
-        const allModels = [...new Set([
-          ...configModels,
-          ...catalog.map((m) => m.model_id.replace(`${name}/`, '')),
-        ])];
 
         return (
           <View key={name} style={styles.card}>
@@ -263,9 +261,9 @@ export default function ModelScreen() {
               </Text>
             )}
 
-            {allModels.length > 0 && (
+            {configModels.length > 0 && (
               <View style={styles.modelList}>
-                {allModels.slice(0, 20).map((modelId) => {
+                {configModels.slice(0, 20).map((modelId) => {
                   const isCli = modelId === 'claude-cli';
                   const disabled = (disabledModels[name] || []).includes(modelId);
                   const pricing = catalogMap[modelId];
@@ -290,14 +288,42 @@ export default function ModelScreen() {
                     </View>
                   );
                 })}
-                {allModels.length > 20 && (
-                  <Text style={styles.moreModels}>+{allModels.length - 20} more</Text>
+                {configModels.length > 20 && (
+                  <Text style={styles.moreModels}>+{configModels.length - 20} more</Text>
                 )}
               </View>
             )}
 
-            {allModels.length === 0 && (
-              <Text style={[styles.keyDisplay, { marginTop: 8 }]}>No models loaded — restart agent to fetch catalog</Text>
+            {/* Add model picker */}
+            {addingModelFor === name ? (
+              <View style={styles.modelPicker}>
+                <Text style={styles.label}>Select a model to add:</Text>
+                {name === 'anthropic' && !configModels.includes('claude-cli') && (
+                  <TouchableOpacity style={styles.pickerItem} onPress={() => addModelToProvider(name, 'claude-cli')}>
+                    <Text style={styles.pickerItemText}>claude-cli</Text>
+                    <Text style={[styles.modelPrice, { color: colors.success }]}>$0 flat</Text>
+                  </TouchableOpacity>
+                )}
+                {catalog.filter((m) => !configModels.includes(m.model_id.replace(`${name}/`, ''))).slice(0, 15).map((m) => {
+                  const shortId = m.model_id.replace(`${name}/`, '');
+                  return (
+                    <TouchableOpacity key={m.model_id} style={styles.pickerItem} onPress={() => addModelToProvider(name, shortId)}>
+                      <Text style={styles.pickerItemText}>{shortId}</Text>
+                      <Text style={styles.modelPrice}>${m.input_cost_per_million}/M in  ${m.output_cost_per_million}/M out</Text>
+                    </TouchableOpacity>
+                  );
+                })}
+                {catalog.length === 0 && (
+                  <Text style={styles.keyDisplay}>Catalog not available — restart agent with litellm installed</Text>
+                )}
+                <TouchableOpacity onPress={() => setAddingModelFor(null)} style={{ marginTop: 8 }}>
+                  <Text style={{ color: colors.textMuted, textAlign: 'center' }}>Cancel</Text>
+                </TouchableOpacity>
+              </View>
+            ) : (
+              <TouchableOpacity style={styles.addModelBtn} onPress={() => setAddingModelFor(name)}>
+                <Text style={styles.addModelText}>+ Add Model</Text>
+              </TouchableOpacity>
             )}
           </View>
         );
@@ -466,6 +492,11 @@ const styles = StyleSheet.create({
   modelId: { fontSize: 13, color: colors.text },
   modelDisabled: { color: colors.textMuted, opacity: 0.5 },
   cliSubtitle: { fontSize: 10, color: colors.textMuted, marginLeft: 18, marginBottom: 4 },
+  addModelBtn: { marginTop: 8, padding: 8, alignItems: 'center' },
+  addModelText: { fontSize: 13, color: colors.primary, fontWeight: '500' },
+  modelPicker: { marginTop: 8, padding: 10, backgroundColor: colors.inputBg, borderRadius: 8 },
+  pickerItem: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: colors.borderLight },
+  pickerItemText: { fontSize: 13, color: colors.text },
   cliToggleRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 12, padding: 10, backgroundColor: colors.inputBg, borderRadius: 8, borderWidth: 1, borderColor: colors.border },
   cliToggleLabel: { fontSize: 13, fontWeight: '600', color: colors.text },
   cliToggleHint: { fontSize: 11, color: colors.textMuted },
