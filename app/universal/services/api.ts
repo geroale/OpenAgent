@@ -144,23 +144,39 @@ export async function testProvider(provider: string): Promise<{ ok: boolean; err
 // ── Models API ──
 
 export async function getModels(): Promise<ModelsResponse> {
-  return get<ModelsResponse>('/api/models');
+  // Try dedicated endpoint first, fall back to config API
+  try {
+    return await get<ModelsResponse>('/api/models');
+  } catch {
+    const cfg = await getConfig();
+    return { models: cfg.providers || {}, active: cfg.model || {} as ModelConfig };
+  }
 }
 
 export async function addModel(
   name: string, config: { api_key?: string; base_url?: string },
 ): Promise<{ ok: boolean }> {
-  return post('/api/models', { name, ...config });
+  // Use config PATCH API (guaranteed to work on all agent versions)
+  const currentConfig = await getConfig();
+  const providers = currentConfig.providers || {};
+  providers[name] = config;
+  return updateConfigSection('providers', providers) as any;
 }
 
 export async function updateModel(
-  name: string, config: { api_key?: string; base_url?: string },
+  name: string, config: Record<string, any>,
 ): Promise<{ ok: boolean }> {
-  return put(`/api/models/${encodeURIComponent(name)}`, config);
+  const currentConfig = await getConfig();
+  const providers = { ...(currentConfig.providers || {}) };
+  providers[name] = { ...providers[name], ...config };
+  return updateConfigSection('providers', providers) as any;
 }
 
 export async function deleteModel(name: string): Promise<void> {
-  return del(`/api/models/${encodeURIComponent(name)}`);
+  const currentConfig = await getConfig();
+  const providers = { ...(currentConfig.providers || {}) };
+  delete providers[name];
+  await updateConfigSection('providers', providers);
 }
 
 export async function testModel(
@@ -174,7 +190,7 @@ export async function getActiveModel(): Promise<{ active: ModelConfig }> {
 }
 
 export async function setActiveModel(model: ModelConfig): Promise<{ ok: boolean }> {
-  return put('/api/models/active', model);
+  return updateConfigSection('model', model) as any;
 }
 
 // ── Usage API ──

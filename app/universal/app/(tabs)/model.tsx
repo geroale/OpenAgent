@@ -230,43 +230,44 @@ export default function ModelScreen() {
               </Text>
             )}
 
-            {/* Model list with enable/disable toggles */}
-            {catalog.length > 0 && (
-              <View style={styles.modelList}>
-                {catalog.slice(0, 15).map((m) => {
-                  const shortId = m.model_id.replace(`${name}/`, '');
-                  const disabled = (disabledModels[name] || []).includes(shortId);
-                  return (
-                    <TouchableOpacity key={m.model_id} style={styles.modelRow} onPress={() => toggleModel(name, shortId)}>
+            <View style={styles.modelList}>
+              {/* Claude CLI — shown first for Anthropic */}
+              {name === 'anthropic' && (() => {
+                const disabled = (disabledModels[name] || []).includes('claude-cli');
+                return (
+                  <View>
+                    <TouchableOpacity style={styles.modelRow} onPress={() => toggleModel(name, 'claude-cli')}>
                       <View style={styles.modelToggle}>
                         <View style={[styles.toggleDot, disabled ? styles.toggleOff : styles.toggleOn]} />
-                        <Text style={[styles.modelId, disabled && styles.modelDisabled]}>{shortId}</Text>
+                        <Text style={[styles.modelId, disabled && styles.modelDisabled]}>claude-cli</Text>
                       </View>
-                      <Text style={[styles.modelPrice, disabled && styles.modelDisabled]}>
-                        ${m.input_cost_per_million}/M in  ${m.output_cost_per_million}/M out
-                      </Text>
+                      <Text style={[styles.modelPrice, disabled && styles.modelDisabled, !disabled && { color: '#2ecc71' }]}>$0 flat</Text>
                     </TouchableOpacity>
-                  );
-                })}
-                {catalog.length > 15 && (
-                  <Text style={styles.moreModels}>+{catalog.length - 15} more</Text>
-                )}
-              </View>
-            )}
-
-            {/* Claude CLI special entry for Anthropic */}
-            {name === 'anthropic' && (() => {
-              const disabled = (disabledModels[name] || []).includes('claude-cli');
-              return (
-                <TouchableOpacity style={styles.modelRow} onPress={() => toggleModel(name, 'claude-cli')}>
-                  <View style={styles.modelToggle}>
-                    <View style={[styles.toggleDot, disabled ? styles.toggleOff : styles.toggleOn]} />
-                    <Text style={[styles.modelId, disabled && styles.modelDisabled]}>claude-cli (subscription)</Text>
+                    <Text style={styles.cliSubtitle}>Pro/Max subscription — no API key needed</Text>
                   </View>
-                  <Text style={[styles.modelPrice, disabled && styles.modelDisabled, !disabled && { color: '#2ecc71' }]}>$0 flat</Text>
-                </TouchableOpacity>
-              );
-            })()}
+                );
+              })()}
+
+              {/* API models from catalog */}
+              {catalog.slice(0, 15).map((m) => {
+                const shortId = m.model_id.replace(`${name}/`, '');
+                const disabled = (disabledModels[name] || []).includes(shortId);
+                return (
+                  <TouchableOpacity key={m.model_id} style={styles.modelRow} onPress={() => toggleModel(name, shortId)}>
+                    <View style={styles.modelToggle}>
+                      <View style={[styles.toggleDot, disabled ? styles.toggleOff : styles.toggleOn]} />
+                      <Text style={[styles.modelId, disabled && styles.modelDisabled]}>{shortId}</Text>
+                    </View>
+                    <Text style={[styles.modelPrice, disabled && styles.modelDisabled]}>
+                      ${m.input_cost_per_million}/M in  ${m.output_cost_per_million}/M out
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+              {catalog.length > 15 && (
+                <Text style={styles.moreModels}>+{catalog.length - 15} more</Text>
+              )}
+            </View>
           </View>
         );
       })}
@@ -411,6 +412,7 @@ const styles = StyleSheet.create({
   toggleOff: { backgroundColor: colors.border },
   modelId: { fontSize: 13, color: colors.text },
   modelDisabled: { color: colors.textMuted, opacity: 0.5 },
+  cliSubtitle: { fontSize: 10, color: colors.textMuted, marginLeft: 18, marginBottom: 4 },
   modelPrice: { fontSize: 11, color: colors.textMuted },
   moreModels: { fontSize: 11, color: colors.textMuted, textAlign: 'center', marginTop: 4 },
 
