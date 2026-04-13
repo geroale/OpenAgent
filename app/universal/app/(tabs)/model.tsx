@@ -12,16 +12,19 @@ import { useConnection } from '../../stores/connection';
 import { useConfig } from '../../stores/config';
 import {
   setBaseUrl, getModels, addModel, deleteModel, testModel, setActiveModel, updateModel,
-  getUsage, getDailyUsage, getModelCatalog,
+  getUsage, getDailyUsage, getModelCatalog, getAvailableProviders,
 } from '../../services/api';
 import PrimaryButton from '../../components/PrimaryButton';
 import type { UsageData, ModelCatalogEntry, DailyUsageEntry, ModelConfig } from '../../../common/types';
 
-const KNOWN_PROVIDERS = ['anthropic', 'openai', 'google', 'z.ai', 'ollama'];
+const FALLBACK_PROVIDERS = ['anthropic', 'openai', 'google'];
 
 export default function ModelScreen() {
   const connConfig = useConnection((s) => s.config);
   const { config: agentConfig, loadConfig } = useConfig();
+
+  // Available providers from litellm
+  const [availableProviders, setAvailableProviders] = useState<string[]>(FALLBACK_PROVIDERS);
 
   // Provider/model state
   const [providers, setProviders] = useState<Record<string, any>>({});
@@ -71,6 +74,7 @@ export default function ModelScreen() {
       }
       setDisabledModels(dm);
     } catch {}
+    getAvailableProviders().then(setAvailableProviders).catch(() => {});
     getUsage().then(setUsage).catch(() => {});
     getDailyUsage(costDays).then(setDailyUsage).catch(() => {});
   };
@@ -333,8 +337,13 @@ export default function ModelScreen() {
       {adding ? (
         <View style={styles.card}>
           <Text style={styles.label}>Provider</Text>
+          <TextInput style={[styles.input, { marginBottom: 8 }]} value={newName} onChangeText={setNewName}
+            placeholder="Type or select a provider" placeholderTextColor={colors.textMuted} />
           <View style={styles.chipRow}>
-            {KNOWN_PROVIDERS.map((p) => (
+            {availableProviders
+              .filter((p) => !newName || p.startsWith(newName.toLowerCase()))
+              .slice(0, 12)
+              .map((p) => (
               <TouchableOpacity key={p} style={[styles.chip, newName === p && styles.chipActive]} onPress={() => setNewName(p)}>
                 <Text style={[styles.chipText, newName === p && styles.chipTextActive]}>{p}</Text>
               </TouchableOpacity>

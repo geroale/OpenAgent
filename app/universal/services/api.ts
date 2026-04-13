@@ -215,3 +215,8 @@ export async function getModelCatalog(provider?: string): Promise<ModelCatalogEn
   const data = await get<{ models: ModelCatalogEntry[] }>(`/api/models/catalog${q}`);
   return data.models;
 }
+
+export async function getAvailableProviders(): Promise<string[]> {
+  const data = await get<{ providers: string[] }>('/api/models/providers');
+  return data.providers;
+}
