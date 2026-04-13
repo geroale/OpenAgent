@@ -10,13 +10,13 @@ import {
 import { useConnection } from '../../stores/connection';
 import { useConfig } from '../../stores/config';
 import {
-  setBaseUrl, getModels, addModel, deleteModel, testModel, setActiveModel,
+  setBaseUrl, getModels, addModel, deleteModel, testModel, setActiveModel, updateModel,
   getUsage, getDailyUsage, getModelCatalog,
 } from '../../services/api';
 import PrimaryButton from '../../components/PrimaryButton';
 import type { UsageData, ModelCatalogEntry, DailyUsageEntry, ModelConfig } from '../../../common/types';
 
-const KNOWN_PROVIDERS = ['anthropic', 'openai', 'google', 'openrouter', 'ollama'];
+const KNOWN_PROVIDERS = ['anthropic', 'openai', 'google', 'z.ai', 'ollama'];
 
 export default function ModelScreen() {
   const connConfig = useConnection((s) => s.config);
@@ -55,6 +55,7 @@ export default function ModelScreen() {
 
   const reload = async () => {
     await loadConfig();
+    if (!connConfig) return;
     try {
       const data = await getModels();
       setProviders(data.models || {});
@@ -90,13 +91,18 @@ export default function ModelScreen() {
 
   const handleAddProvider = async () => {
     if (!newName.trim()) return;
-    await addModel(newName.trim(), {
-      api_key: newKey.trim() || undefined,
-      base_url: newUrl.trim() || undefined,
-    });
-    setAdding(false);
-    setNewName(''); setNewKey(''); setNewUrl('');
-    await reload();
+    if (!connConfig) { alert('Not connected to agent'); return; }
+    try {
+      await addModel(newName.trim(), {
+        api_key: newKey.trim() || undefined,
+        base_url: newUrl.trim() || undefined,
+      });
+      setAdding(false);
+      setNewName(''); setNewKey(''); setNewUrl('');
+      await reload();
+    } catch (e: any) {
+      alert(`Failed to add provider: ${e.message}`);
+    }
   };
 
   const handleRemoveProvider = async (name: string) => {
@@ -116,7 +122,30 @@ export default function ModelScreen() {
   };
 
   const handleSave = async () => {
-    const model: ModelConfig = { provider: 'smart', monthly_budget: parseFloat(budget) || 20 };
+    // Check if only claude-cli is enabled (all API models disabled)
+    let onlyCli = false;
+    const allEnabled: string[] = [];
+    for (const [prov, cfg] of Object.entries(providers)) {
+      const catalog = catalogCache[prov] || [];
+      const disabled = disabledModels[prov] || [];
+      for (const m of catalog) {
+        const shortId = m.model_id.replace(`${prov}/`, '');
+        if (!disabled.includes(shortId)) allEnabled.push(m.model_id);
+      }
+      if (prov === 'anthropic' && !disabled.includes('claude-cli')) {
+        allEnabled.push('claude-cli');
+      }
+    }
+
+    let model: ModelConfig;
+    if (allEnabled.length === 1 && allEnabled[0] === 'claude-cli') {
+      model = { provider: 'claude-cli', model_id: 'claude-sonnet-4-6', permission_mode: 'bypass' };
+    } else if (allEnabled.length === 1 && allEnabled[0] !== 'claude-cli') {
+      model = { provider: 'litellm', model_id: allEnabled[0] };
+    } else {
+      model = { provider: 'smart', monthly_budget: parseFloat(budget) || 20 };
+    }
+
     await setActiveModel(model);
     setSaved(true);
     setTimeout(() => setSaved(false), 3000);
