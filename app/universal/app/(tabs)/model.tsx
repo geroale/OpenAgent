@@ -3,6 +3,7 @@ import { colors } from '../../theme';
  * Model screen — provider cards grid, model catalog, cost dashboard.
  */
 
+import Feather from '@expo/vector-icons/Feather';
 import { useEffect, useState } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, ScrollView, StyleSheet, ActivityIndicator,
@@ -17,6 +18,29 @@ import PrimaryButton from '../../components/PrimaryButton';
 import type { UsageData, ModelCatalogEntry, DailyUsageEntry, ModelConfig } from '../../../common/types';
 
 const KNOWN_PROVIDERS = ['anthropic', 'openai', 'google', 'z.ai', 'ollama'];
+
+// Fallback catalog when the /api/models/catalog endpoint isn't available
+const STATIC_CATALOG: Record<string, ModelCatalogEntry[]> = {
+  anthropic: [
+    { model_id: 'anthropic/claude-opus-4-6', input_cost_per_million: 5, output_cost_per_million: 25 },
+    { model_id: 'anthropic/claude-sonnet-4-6', input_cost_per_million: 3, output_cost_per_million: 15 },
+    { model_id: 'anthropic/claude-haiku-4-5', input_cost_per_million: 1, output_cost_per_million: 5 },
+  ],
+  openai: [
+    { model_id: 'openai/o3', input_cost_per_million: 10, output_cost_per_million: 40 },
+    { model_id: 'openai/gpt-4o', input_cost_per_million: 2.5, output_cost_per_million: 10 },
+    { model_id: 'openai/gpt-4o-mini', input_cost_per_million: 0.15, output_cost_per_million: 0.6 },
+    { model_id: 'openai/chatgpt-4o-latest', input_cost_per_million: 2.5, output_cost_per_million: 10 },
+  ],
+  google: [
+    { model_id: 'google/gemini-2.5-pro', input_cost_per_million: 1.25, output_cost_per_million: 10 },
+    { model_id: 'google/gemini-2.5-flash', input_cost_per_million: 0.15, output_cost_per_million: 0.6 },
+  ],
+  'z.ai': [
+    { model_id: 'zhipu/glm-5', input_cost_per_million: 1, output_cost_per_million: 5 },
+    { model_id: 'zhipu/glm-4-plus', input_cost_per_million: 0.5, output_cost_per_million: 2.5 },
+  ],
+};
 
 export default function ModelScreen() {
   const connConfig = useConnection((s) => s.config);
@@ -78,8 +102,16 @@ export default function ModelScreen() {
     if (catalogCache[provider]) return;
     try {
       const models = await getModelCatalog(provider);
-      setCatalogCache((prev) => ({ ...prev, [provider]: models }));
+      if (models && models.length > 0) {
+        setCatalogCache((prev) => ({ ...prev, [provider]: models }));
+        return;
+      }
     } catch {}
+    // Fallback to static catalog
+    const fallback = STATIC_CATALOG[provider];
+    if (fallback) {
+      setCatalogCache((prev) => ({ ...prev, [provider]: fallback }));
+    }
   };
 
   useEffect(() => {
@@ -97,10 +129,16 @@ export default function ModelScreen() {
       const entry: any = {};
       if (newKey.trim()) entry.api_key = newKey.trim();
       if (newUrl.trim()) entry.base_url = newUrl.trim();
-      // For Anthropic with CLI, add claude-cli to models list
-      if (newName === 'anthropic' && newUseCli) {
-        entry.models = ['claude-cli'];
+
+      // Auto-populate models list from catalog
+      const catalog = STATIC_CATALOG[newName] || [];
+      const modelIds = catalog.map((m) => m.model_id.split('/').pop()!);
+      // For Anthropic, add claude-cli
+      if (newName === 'anthropic') {
+        if (newUseCli) modelIds.unshift('claude-cli');
       }
+      if (modelIds.length > 0) entry.models = modelIds;
+
       await addModel(newName.trim(), entry);
       setAdding(false);
       setNewName(''); setNewKey(''); setNewUrl(''); setNewUseCli(false);
@@ -173,7 +211,7 @@ export default function ModelScreen() {
           <View style={styles.usageBar}>
             <View style={[styles.usageFill, {
               width: `${Math.min(100, (usage.monthly_spend / usage.monthly_budget) * 100)}%`,
-              backgroundColor: usage.monthly_spend / usage.monthly_budget > 0.8 ? '#e74c3c' : colors.primary,
+              backgroundColor: usage.monthly_spend / usage.monthly_budget > 0.8 ? colors.error : colors.primary,
             }]} />
           </View>
           <Text style={styles.usageText}>
@@ -199,7 +237,7 @@ export default function ModelScreen() {
                     : <Text style={styles.actionLink}>Test</Text>}
                 </TouchableOpacity>
                 <TouchableOpacity onPress={() => handleRemoveProvider(name)}>
-                  <Text style={[styles.actionLink, { color: '#e74c3c' }]}>Remove</Text>
+                  <Text style={[styles.actionLink, { color: colors.error }]}>Remove</Text>
                 </TouchableOpacity>
               </View>
             </View>
@@ -228,7 +266,7 @@ export default function ModelScreen() {
                         <View style={[styles.toggleDot, disabled ? styles.toggleOff : styles.toggleOn]} />
                         <Text style={[styles.modelId, disabled && styles.modelDisabled]}>claude-cli</Text>
                       </View>
-                      <Text style={[styles.modelPrice, disabled && styles.modelDisabled, !disabled && { color: '#2ecc71' }]}>$0 flat</Text>
+                      <Text style={[styles.modelPrice, disabled && styles.modelDisabled, !disabled && { color: colors.success }]}>$0 flat</Text>
                     </TouchableOpacity>
                     <Text style={styles.cliSubtitle}>Pro/Max subscription — no API key needed</Text>
                   </View>
@@ -310,7 +348,10 @@ export default function ModelScreen() {
         </View>
       ) : (
         <TouchableOpacity style={styles.addBtn} onPress={() => setAdding(true)}>
-          <Text style={styles.addBtnText}>+ Add Provider</Text>
+          <View style={styles.addBtnContent}>
+            <Feather name="plus" size={14} color={colors.primary} />
+            <Text style={styles.addBtnText}>Add Provider</Text>
+          </View>
         </TouchableOpacity>
       )}
 
@@ -406,15 +447,15 @@ const styles = StyleSheet.create({
   providerName: { fontSize: 15, fontWeight: '600', color: colors.text },
   actionLink: { fontSize: 13, color: colors.primary, fontWeight: '500' },
   keyDisplay: { fontSize: 12, color: colors.textMuted, marginTop: 4 },
-  testOk: { fontSize: 12, color: '#2ecc71', marginTop: 6 },
-  testFail: { fontSize: 12, color: '#e74c3c', marginTop: 6 },
+  testOk: { fontSize: 12, color: colors.success, marginTop: 6 },
+  testFail: { fontSize: 12, color: colors.error, marginTop: 6 },
 
   // Model list in card
   modelList: { marginTop: 10, borderTopWidth: 1, borderTopColor: colors.borderLight, paddingTop: 8 },
   modelRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 6 },
   modelToggle: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   toggleDot: { width: 10, height: 10, borderRadius: 5 },
-  toggleOn: { backgroundColor: '#2ecc71' },
+  toggleOn: { backgroundColor: colors.success },
   toggleOff: { backgroundColor: colors.border },
   modelId: { fontSize: 13, color: colors.text },
   modelDisabled: { color: colors.textMuted, opacity: 0.5 },
@@ -439,7 +480,8 @@ const styles = StyleSheet.create({
     borderWidth: 1, borderColor: colors.border, borderStyle: 'dashed',
     borderRadius: 10, padding: 14, alignItems: 'center', marginBottom: 10,
   },
-  addBtnText: { fontSize: 14, color: colors.primary, fontWeight: '500' },
+  addBtnContent: { flexDirection: 'row', alignItems: 'center' },
+  addBtnText: { fontSize: 14, color: colors.primary, fontWeight: '500', marginLeft: 8 },
 
   // Cost dashboard
   costTabs: { flexDirection: 'row', gap: 8, marginBottom: 12 },
