@@ -87,8 +87,12 @@ if [ -z "$PREFIX" ]; then
 fi
 
 # ── Resolve the latest release asset ─────────────────────────────────
+#
+# macOS is distributed as a signed + notarized + stapled ``.pkg`` (no
+# Gatekeeper dialog on Finder double-click). Linux ships as ``.tar.gz``.
+# Windows isn't handled here — WSL users fall through to Linux, everyone
+# else downloads the .zip from the releases page.
 
-ASSET="${APP}-*-${OS}-${ARCH}.tar.gz"
 API="https://api.github.com/repos/${REPO}/releases/latest"
 
 echo "→ Resolving latest release for $APP ($OS/$ARCH)..."
@@ -99,7 +103,11 @@ if [ -z "$TAG" ]; then
 fi
 VERSION="${TAG#v}"
 
-ARCHIVE="${APP}-${VERSION}-${OS}-${ARCH}.tar.gz"
+if [ "$OS" = "macos" ]; then
+    ARCHIVE="${APP}-${VERSION}-${OS}-${ARCH}.pkg"
+else
+    ARCHIVE="${APP}-${VERSION}-${OS}-${ARCH}.tar.gz"
+fi
 URL="https://github.com/${REPO}/releases/download/${TAG}/${ARCHIVE}"
 SHA_URL="${URL}.sha256"
 
@@ -128,26 +136,40 @@ if curl -fsSLI "$SHA_URL" >/dev/null 2>&1; then
     fi
 fi
 
-# ── Extract + install ────────────────────────────────────────────────
+# ── Extract the binary out of the archive/package ────────────────────
 
-tar xzf "$TMP/$ARCHIVE" -C "$TMP"
-BINARY="$TMP/$APP"
-if [ ! -x "$BINARY" ] && [ -f "$BINARY" ]; then
-    chmod +x "$BINARY"
+if [ "$OS" = "macos" ]; then
+    # ``pkgutil --expand-full`` unpacks the whole .pkg tree (xar archive
+    # + Payload) into a directory — no sudo required, so we can drop the
+    # binary into $HOME rather than running the installer against /.
+    # The binary lives at <expanded>/<component>.pkg/Payload/<install-path>/<name>.
+    pkgutil --expand-full "$TMP/$ARCHIVE" "$TMP/pkg-expanded"
+    BINARY=$(find "$TMP/pkg-expanded" -type f -name "$APP" -perm +111 2>/dev/null | head -1)
+    if [ -z "$BINARY" ]; then
+        BINARY=$(find "$TMP/pkg-expanded" -type f -name "$APP" 2>/dev/null | head -1)
+    fi
+else
+    tar xzf "$TMP/$ARCHIVE" -C "$TMP"
+    BINARY="$TMP/$APP"
+    if [ ! -x "$BINARY" ] && [ -f "$BINARY" ]; then
+        chmod +x "$BINARY"
+    fi
 fi
-if [ ! -x "$BINARY" ]; then
-    echo "Archive did not contain the expected binary ($APP)." >&2
+
+if [ -z "$BINARY" ] || [ ! -f "$BINARY" ]; then
+    echo "Could not locate the $APP binary in the downloaded $ARCHIVE." >&2
     exit 1
 fi
 
+# ── Install ──────────────────────────────────────────────────────────
+
 DEST="$PREFIX/$APP"
 echo "→ Installing to $DEST"
-mv "$BINARY" "$DEST"
+cp "$BINARY" "$DEST"
 chmod +x "$DEST"
 
-# On macOS, browser downloads are quarantined. When we installed via a
-# terminal pipe that attribute doesn't apply — but clear it anyway in
-# case the user hit this path after a manual download.
+# Belt-and-braces: neither curl nor pkgutil sets com.apple.quarantine,
+# but clear it anyway in case something upstream did.
 if [ "$OS" = "macos" ] && command -v xattr >/dev/null 2>&1; then
     xattr -dr com.apple.quarantine "$DEST" 2>/dev/null || true
 fi

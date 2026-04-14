@@ -12,39 +12,54 @@ Open [openagent.uno/app](https://openagent.uno/app/) in any browser and point it
 
 ## Agent Server
 
-Single self-contained executable — no Python required.
+Single self-contained executable — no Python required. Pick the install path that matches your platform:
+
+### macOS — `.pkg` installer
+
+Double-click `openagent-<ver>-macos-<arch>.pkg` from the cards below. It's signed + notarized with the ticket stapled, so Finder launches it with **zero warnings**. The installer drops the binary into `/usr/local/bin/openagent`. `arm64` is Apple Silicon, `x64` is Intel.
+
+Or, from a terminal:
 
 ```bash
 curl -fsSL https://openagent.uno/install.sh | sh
 ```
 
-The script picks the right asset, verifies SHA-256, installs it into `$PATH`, and clears the macOS quarantine attribute. Pass `--prefix DIR` to override the install location.
+The script downloads the `.pkg`, extracts the binary with `pkgutil --expand-full` (no `sudo` needed), and drops it into `~/.local/bin`.
 
-Manual download:
+### Linux — `.tar.gz`
 
 ```bash
-tar xzf openagent-<ver>-<platform>-<arch>.tar.gz
+curl -fsSL https://openagent.uno/install.sh | sh
+```
+
+Or manually:
+
+```bash
+tar xzf openagent-<ver>-linux-x64.tar.gz
 chmod +x openagent
 ./openagent serve ./my-agent
 ```
 
-First launch extracts bundled runtime assets (~5–10 s); later launches start in under a second. The binary self-updates from GitHub Releases.
+Any modern distro (glibc ≥ 2.31) works.
 
-**Platform notes**
+### Windows — `.zip`
 
-- **macOS** — unsigned binary. Run `xattr -dr com.apple.quarantine ./openagent`, or right-click → Open once.
-- **Linux** — `chmod +x ./openagent`. Any modern distro (glibc ≥ 2.31).
-- **Windows** — SmartScreen → **More info** → **Run anyway**, once per install.
+Extract the `.zip`, double-click `openagent.exe`. One-time SmartScreen prompt on first launch — click **More info → Run anyway**. (No code-signing cert on Windows yet; that warning is unavoidable until we get one.)
+
+### Runtime behaviour
+
+- First launch extracts bundled runtime assets into `$TMPDIR/_MEI_*` (~5–10 s); later launches reuse the cache and start in under a second.
+- The binary self-updates from GitHub Releases (downloads the `.pkg` on macOS, `.tar.gz` / `.zip` elsewhere).
 
 ## CLI Client
 
-Single-file terminal client for a running Gateway.
+Single-file terminal client for a running Gateway. Same distribution shape as the server: `.pkg` on macOS, `.tar.gz` on Linux, `.zip` on Windows.
 
 ```bash
 curl -fsSL https://openagent.uno/install.sh | sh -s -- --cli
 ```
 
-Manual: extract `openagent-cli-<ver>-<platform>-<arch>.(tar.gz|zip)` and run `./openagent-cli connect localhost:8765 --token mysecret`. Same Gatekeeper / SmartScreen notes as the server.
+Manual: download the installer/archive for your platform, then run `openagent-cli connect localhost:8765 --token mysecret`.
 
 ## Desktop App
 

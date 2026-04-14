@@ -30,20 +30,24 @@ const loading = ref(true);
 const error = ref("");
 const releases = ref<Release[]>([]);
 
-// Matches the server standalone executable archive.
-// Example: openagent-0.4.1-macos-arm64.tar.gz / openagent-0.4.1-windows-x64.zip
-// The leading `openagent-<digit>` guard prevents this from matching CLI archives
-// (which start with `openagent-cli-`).
+// Matches the server standalone distributable — the tar.gz / zip archive
+// (Linux + Windows users + CI install.sh) plus the signed + notarized
+// + stapled .pkg installer (macOS Finder double-click users).
+// Example filenames:
+//   openagent-0.5.4-macos-arm64.tar.gz
+//   openagent-0.5.4-macos-arm64.pkg
+//   openagent-0.5.4-windows-x64.zip
+// The leading `openagent-<digit>` guard prevents this from matching CLI
+// artifacts (which start with `openagent-cli-`).
 function isServerExecutableAsset(name: string) {
-  return /^openagent-\d+\.\d+\.\d+-(macos|linux|windows)-(arm64|x64)\.(tar\.gz|zip)$/i.test(
+  return /^openagent-\d+\.\d+\.\d+-(macos|linux|windows)-(arm64|x64)\.(tar\.gz|zip|pkg)$/i.test(
     name,
   );
 }
 
-// Matches the CLI standalone executable archive.
-// Example: openagent-cli-0.4.1-macos-arm64.tar.gz / openagent-cli-0.4.1-windows-x64.zip
+// Same for the CLI artifacts.
 function isCliExecutableAsset(name: string) {
-  return /^openagent-cli-\d+\.\d+\.\d+-(macos|linux|windows)-(arm64|x64)\.(tar\.gz|zip)$/i.test(
+  return /^openagent-cli-\d+\.\d+\.\d+-(macos|linux|windows)-(arm64|x64)\.(tar\.gz|zip|pkg)$/i.test(
     name,
   );
 }
@@ -97,7 +101,11 @@ function executablePlatformLabel(name: string): string {
 
 function assetLabel(name: string) {
   const arch = archLabel(name);
-  // Standalone server and CLI executables share the same naming convention
+  // Flag the .pkg as an installer so users know it's the Finder-friendly
+  // "no Gatekeeper dialog" option, distinct from the raw tar.gz archive.
+  if ((isServerExecutableAsset(name) || isCliExecutableAsset(name)) && /\.pkg$/i.test(name)) {
+    return `macOS installer${arch}`;
+  }
   if (isServerExecutableAsset(name) || isCliExecutableAsset(name)) {
     const plat = executablePlatformLabel(name);
     return `${plat}${arch}`;
@@ -112,7 +120,10 @@ function assetLabel(name: string) {
 }
 
 function assetPriority(name: string) {
-  // Executable archives: prefer tar.gz (Unix) over zip (Windows) only for ordering.
+  // Within a single platform we want the friendlier download first. On
+  // macOS the stapled .pkg beats the bare tar.gz (no Gatekeeper dialog);
+  // elsewhere the archive is the only option.
+  if (/macos.*\.pkg$/i.test(name)) return -1;
   if (/\.dmg$/i.test(name)) return 0;
   if (/\.exe$/i.test(name)) return 0;
   if (/\.AppImage$/i.test(name)) return 0;
