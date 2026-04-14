@@ -230,8 +230,10 @@ onMounted(async () => {
             </div>
           </div>
           <div class="download-note">
-            Download-and-run binaries for the Agent Server. No Python required.
-            Bundles all dependencies and self-updates from GitHub Releases.
+            Single-file binary — no Python required, no folders to unpack.
+            Run <code>curl -fsSL https://openagent.uno/install.sh | sh</code>,
+            or grab the archive below and extract the one <code>openagent</code>
+            binary inside.
           </div>
           <div v-if="serverDownload" class="download-note">
             Latest server release published
@@ -268,8 +270,9 @@ onMounted(async () => {
             </div>
           </div>
           <div class="download-note">
-            Download-and-run binaries for the terminal client that connects to a
-            running OpenAgent Gateway. No Python required.
+            Single-file binary for the terminal client. Install with
+            <code>curl -fsSL https://openagent.uno/install.sh | sh -s -- --cli</code>,
+            or extract the archive to get one <code>openagent-cli</code> file.
           </div>
           <div v-if="cliDownload" class="download-note">
             Latest CLI release published {{ formatDate(cliDownload.release.published_at) }}.

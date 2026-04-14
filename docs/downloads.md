@@ -42,34 +42,64 @@ Use the Web App when you want the OpenAgent UI on a machine where you cannot (or
 
 ## Agent Server
 
-Install this if you want to run OpenAgent itself. Distributed as a **standalone executable** — no Python required.
+Install this if you want to run OpenAgent itself. Distributed as a **single self-contained executable** — no Python required, no folders, no bundled `_internal/` sibling. One file you drop into `$PATH` and run.
 
-Pick your platform's archive from the download cards below, extract it, and run:
+### One-line install (macOS / Linux)
 
 ```bash
+curl -fsSL https://openagent.uno/install.sh | sh
+```
+
+The script picks the right asset for your platform, verifies the SHA-256, drops the binary into the first writable location among `~/.local/bin`, `~/bin`, `/usr/local/bin`, clears the macOS quarantine attribute, and prints any `PATH` hint you need. Pass `--prefix DIR` to override the install location.
+
+### Manual download
+
+Grab the archive from the cards below, extract it, move the binary somewhere on `$PATH`, and run:
+
+```bash
+tar xzf openagent-<ver>-<platform>-<arch>.tar.gz
+chmod +x openagent
 ./openagent serve ./my-agent
 ```
 
-- The archive bundles every dependency the server needs.
+- The archive contains **one file** (the `openagent` executable). No `_internal/` folder.
+- On first launch the binary extracts bundled Python + Node MCP assets into `$TMPDIR/_MEI_*` (~5-10 s); subsequent launches reuse the cache and start in under a second.
 - On first run it creates an agent directory with default config, database, and memory vault.
 - The executable self-updates from GitHub Releases automatically.
 - All artifacts ship through GitHub Releases — there is no PyPI channel.
 
 Archive filenames follow the pattern `openagent-<version>-<platform>-<arch>.(tar.gz|zip)`.
 
+### Platform notes
+
+| Platform | One-time step for downloaded binaries |
+|---|---|
+| **macOS**  | The binary is unsigned. On first launch Finder refuses it with "cannot be opened". Either run `xattr -dr com.apple.quarantine ./openagent` (the one-line installer does this automatically) or right-click the file → Open → Open anyway, once. |
+| **Linux**  | `chmod +x ./openagent` then run. Any modern distro (glibc ≥ 2.31) works. |
+| **Windows** | First launch triggers Microsoft Defender SmartScreen ("Windows protected your PC"). Click **More info** → **Run anyway**, once per install. |
+
 ## CLI Client
 
-Install this if you want a terminal UI for an already running OpenAgent server. Also distributed as a standalone executable — no Python required.
+Install this if you want a terminal UI for an already running OpenAgent server. Also a **single-file executable** — no Python required.
 
-Download the archive for your platform from the cards below, extract it, and run:
+### One-line install
 
 ```bash
+curl -fsSL https://openagent.uno/install.sh | sh -s -- --cli
+```
+
+### Manual download
+
+```bash
+tar xzf openagent-cli-<ver>-<platform>-<arch>.tar.gz
+chmod +x openagent-cli
 ./openagent-cli connect localhost:8765 --token mysecret
 ```
 
 - The CLI is a separate app and does not run the agent server for you.
 - It connects to any OpenAgent Gateway over WebSocket.
 - Archive filenames follow the pattern `openagent-cli-<version>-<platform>-<arch>.(tar.gz|zip)`.
+- Same Gatekeeper / SmartScreen notes as the Agent Server.
 
 ## Desktop App
 
