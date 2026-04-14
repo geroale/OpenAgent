@@ -9,11 +9,35 @@ system_prompt: |
   You are a helpful assistant.
 
 model:
-  provider: claude-cli           # claude-cli | claude-api | zhipu
+  provider: claude-cli           # claude-cli | claude-api | zhipu | openai | smart
   model_id: claude-sonnet-4-6
   permission_mode: bypass        # bypass | auto | default
-  # api_key: ${API_KEY}          # for claude-api or zhipu
+  # api_key: ${API_KEY}          # for claude-api, openai, zhipu
   # base_url: https://...        # for zhipu/OpenAI-compatible
+
+# OR: Smart Router — classifies each message and picks the right tier model.
+# Falls back to the cheap model automatically when monthly budget is exhausted.
+# model:
+#   provider: smart
+#   monthly_budget: 50
+#   classifier_model: gpt-4o-mini
+#   routing:
+#     simple: gpt-4o-mini
+#     medium: gpt-4.1-mini
+#     hard: gpt-4.1
+#     fallback: gpt-4o-mini
+
+providers:
+  openai:
+    api_key: ${OPENAI_API_KEY}
+    models:
+      - gpt-4o-mini
+      - gpt-4.1-mini
+      - gpt-4.1
+  anthropic:
+    api_key: ${ANTHROPIC_API_KEY}
+    models:
+      - claude-sonnet-4-6
 
 mcp_defaults: true
 # mcp_disable: ["computer-control"]

@@ -1,6 +1,6 @@
 # MCP Tools
 
-All MCP tools are available to every model — model-agnostic by design. OpenAgent includes **8 default MCPs** that load automatically.
+All MCP tools are available to every model — model-agnostic by design. OpenAgent includes **9 default MCPs** that load automatically, and the LLM can enumerate them at runtime via the built-in `list_mcp_servers` tool.
 
 ## Default MCPs
 
@@ -15,6 +15,8 @@ All MCP tools are available to every model — model-agnostic by design. OpenAge
 | `chrome-devtools` | Browser automation, DOM, performance | Node.js + Chrome |
 | `messaging` | Send messages via Telegram/Discord/WhatsApp | Channel tokens |
 | `scheduler` | Manage cron tasks from within conversations | Python |
+
+Tool names are namespaced `<server>_<tool>` (Agno convention) so `filesystem_read_text_file`, `vault_write_note`, etc. — no collisions between servers, and the LLM can pick tools just by name.
 
 ## Disabling Defaults
 
@@ -51,10 +53,21 @@ mcp:
     oauth: true
 ```
 
+## How the Pool Works
+
+At startup, OpenAgent builds a single `MCPPool` that connects every configured server once. Both model backends read from the same pool:
+
+- **Agno providers** (OpenAI, Anthropic API, Z.ai GLM, any OpenAI-compatible endpoint) get the live `MCPTools` toolkits and register them on the Agno `Agent` directly — tool routing, call loops, and retries are Agno's native implementation.
+- **Claude CLI** receives the stdio/URL spec dicts and hands them to the Claude Agent SDK's `ClaudeSDKClient(mcp_servers=...)` parameter, which manages its own subprocess lifecycle.
+
+Sharing the pool means you don't pay N times for the same MCP when running SmartRouter across multiple tiers, and there's no in-process tool registry for OpenAgent to keep in sync — the providers own it.
+
+Per-call timeout defaults to 30 seconds (npx-launched servers like `@modelcontextprotocol/server-filesystem` routinely take 5–15 s on their first tool call).
+
 ## Claude CLI Notes
 
-When using `claude-cli` as the model provider, OpenAgent passes all MCPs to Claude CLI via `--mcp-config`. Known constraints:
+When using `claude-cli` as the model provider, OpenAgent passes the same pool to the Claude Agent SDK via `mcp_servers`. Known constraints:
 
-- Requires Claude CLI 2.1.96+
+- Requires Claude CLI 2.1.96+ and the `claude-agent-sdk` Python package
 - Commands must use absolute paths (handled automatically)
-- The Claude CLI has a 5-second MCP startup deadline — OpenAgent uses a persistent client to avoid this bottleneck
+- The Claude binary is occasionally unreliable when many MCPs register at once; OpenAgent sets `--strict-mcp-config` so failures surface immediately instead of silently dropping servers

@@ -117,6 +117,41 @@ OpenAgent stores files in platform-standard directories:
 
 Override with `-c /path/to/openagent.yaml` or set paths in config.
 
+## Testing
+
+The repository ships with an end-to-end test suite that exercises the full gateway, agent, MCP, and model stack against real API keys. Each test lives in its own module under `scripts/tests/`:
+
+```bash
+# Full suite (reads API keys from ~/my-agent/openagent.yaml)
+bash scripts/test_openagent.sh
+
+# Include the Claude Agent SDK path (spawns the `claude` binary)
+bash scripts/test_openagent.sh --include-claude
+
+# Run a specific category only
+bash scripts/test_openagent.sh --only files,rest,channels
+
+# List all registered tests (category/name) and exit
+bash scripts/test_openagent.sh --list
+```
+
+Categories:
+
+| Category | What it covers |
+|---|---|
+| `imports`, `catalog` | Module compile + catalog/pricing helpers |
+| `channels`, `formatting` | Pure-unit string utilities (attachment markers, split, Telegram/WhatsApp rendering) |
+| `pool`, `mcp` | MCP pool lifecycle + per-server tool round-trips |
+| `agno`, `router`, `budget` | Live LLM calls + SmartRouter tier classification + budget-aware fallback + `usage_log` rows |
+| `gateway`, `sessions` | HTTP server boot + WebSocket message round-trip + session isolation |
+| `upload`, `voice`, `files` | File/audio upload + voice transcription path + full agent-reads-uploaded-file pipeline through filesystem MCP + `[IMAGE:/…]` response markers → WS `attachments` field |
+| `config`, `logs`, `usage`, `models`, `pricing`, `providers`, `vault_rest` | REST surface |
+| `cron`, `dream`, `updater` | Scheduler roundtrip, dream-mode prompt, updater smoke |
+| `bridges` | Telegram/Discord/WhatsApp module imports + `BaseBridge` contract |
+| `claude_cli` | Claude Agent SDK one-shot + MCP tool invocation (needs `--include-claude`) |
+
+The suite builds a throwaway agent dir under `/tmp/openagent-test-<uuid>/` so it never touches your real `my-agent` config or database.
+
 ### Migrating to agent directory
 
 ```bash

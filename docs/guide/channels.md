@@ -69,12 +69,34 @@ openagent serve -ch telegram     # specific channel only
 
 ## Media Support
 
-The agent can send files by including markers in responses:
+### Files & images from user → agent
+
+Upload endpoint:
+
+```
+POST /api/upload        (multipart/form-data, field: "file")
+```
+
+Returns `{path, filename, transcription?}`. The `path` is a local absolute path the agent can read with the filesystem MCP (`filesystem_read_text_file`, `filesystem_read_media_file`, `filesystem_get_file_info`, etc.). On macOS it's a `/private/var/folders/.../T/oa_upload_<rand>/<filename>` realpath — already resolved so the filesystem MCP's allowlist check doesn't reject it.
+
+Flow:
+
+1. Client (web app, desktop, any bridge) posts the file to `/api/upload`.
+2. The returned path goes into the next chat message text (e.g. `"Summarise the file at /private/var/.../report.pdf"`) — OR into the WS `attachments` field if the client builds one directly via `Agent.run(attachments=[...])`.
+3. The LLM calls a filesystem MCP tool with that path to read content.
+
+### Agent → user attachments
+
+The agent signals attachments back to the client by emitting markers in its reply text:
+
 ```
 [IMAGE:/path/to/chart.png]
 [FILE:/path/to/report.pdf]
 [VOICE:/path/to/memo.ogg]
+[VIDEO:/path/to/clip.mp4]
 ```
+
+The gateway strips these markers from the response text and delivers them as a structured `attachments: [{type, path, filename}]` array on the WS `response` message. Bridges render them as native media attachments (Telegram photo, Discord file, WhatsApp media).
 
 ## Voice Transcription
 
