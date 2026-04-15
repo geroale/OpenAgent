@@ -56,6 +56,16 @@
   justify-content: flex-start !important;
 }
 
+/* `background-color` cannot render a gradient, so paint the brand
+   button's gradient via `background` shorthand instead. */
+.VPButton.brand {
+  background: var(--vp-button-brand-bg);
+}
+
+.VPButton.brand:hover {
+  background: var(--vp-button-brand-hover-bg);
+}
+
 .VPFeature {
   border: 1px solid var(--vp-c-border);
   background:
