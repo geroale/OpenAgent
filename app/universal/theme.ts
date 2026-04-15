@@ -220,6 +220,15 @@ export function getThemeMode(): ThemeMode {
   return currentMode;
 }
 
+/** Raw palette for the current theme — always actual hex values, never
+ *  `var(--oa-*)` references. Use this in contexts that can't resolve CSS
+ *  variables at paint time (Canvas 2D `fillStyle`/`strokeStyle`, gradient
+ *  stop math, etc.). DOM styles should keep using `colors` so theme
+ *  toggles re-paint without re-running JS. */
+export function getRawColors(): typeof lightColors {
+  return currentMode === 'dark' ? darkColors : lightColors;
+}
+
 /**
  * Switch theme. On web this just toggles the `data-theme` attribute
  * (browser re-resolves every `var(--oa-*)` instantly — no reload). We

@@ -12,7 +12,7 @@
 import { useRef, useEffect, useCallback, useState } from 'react';
 import { View, StyleSheet, Platform } from 'react-native';
 import type { GraphData } from '../../common/types';
-import { colors, font } from '../theme';
+import { colors, font, getRawColors } from '../theme';
 
 interface Props {
   data: GraphData;
@@ -32,7 +32,6 @@ interface SimNode {
   vx: number;
   vy: number;
   radius: number;
-  color: string;
   pinned: boolean;
 }
 
@@ -41,11 +40,14 @@ interface SimEdge {
   target: number;
 }
 
-function tagColor(tags: string[]): string {
-  if (!tags.length) return colors.graphNodeMuted;
+/** Palette must be passed in (not imported) because Canvas 2D can't
+ *  resolve the `var(--oa-*)` references on the web `colors` proxy — we
+ *  need actual hex values from `getRawColors()`. */
+function tagColor(tags: string[], palette: ReturnType<typeof getRawColors>): string {
+  if (!tags.length) return palette.graphNodeMuted;
   let hash = 0;
   for (const c of tags[0]) hash = ((hash << 5) - hash + c.charCodeAt(0)) | 0;
-  return colors.graph[Math.abs(hash) % colors.graph.length];
+  return palette.graph[Math.abs(hash) % palette.graph.length];
 }
 
 // ── Force simulation (runs in requestAnimationFrame) ──
@@ -65,7 +67,6 @@ function buildSim(data: GraphData): { nodes: SimNode[]; edges: SimEdge[] } {
       vx: 0,
       vy: 0,
       radius: 6 + Math.min((data.edges.filter(e => e.source === n.id || e.target === n.id).length) * 1.5, 12),
-      color: tagColor(n.tags || []),
       pinned: false,
     };
   });
@@ -194,6 +195,9 @@ export default function GraphView({ data, onSelectNode, width, height }: Props) 
       const cam = camRef.current;
       const W = containerSize.w, H = containerSize.h;
       const dpr = window.devicePixelRatio || 1;
+      // Raw hex palette for canvas — resolved each frame so theme toggles
+      // take effect without any extra subscription/invalidation.
+      const palette = getRawColors();
 
       canvas.width = W * dpr;
       canvas.height = H * dpr;
@@ -208,7 +212,7 @@ export default function GraphView({ data, onSelectNode, width, height }: Props) 
       }
 
       // Clear
-      ctx.fillStyle = colors.graphBg;
+      ctx.fillStyle = palette.graphBg;
       ctx.fillRect(0, 0, W, H);
 
       // Transform to camera
@@ -218,7 +222,7 @@ export default function GraphView({ data, onSelectNode, width, height }: Props) 
       ctx.translate(cam.x, cam.y);
 
       // Edges
-      ctx.strokeStyle = colors.graphEdge;
+      ctx.strokeStyle = palette.graphEdge;
       ctx.lineWidth = 1 / cam.zoom;
       ctx.beginPath();
       for (const e of edges) {
@@ -232,12 +236,13 @@ export default function GraphView({ data, onSelectNode, width, height }: Props) 
       for (let i = 0; i < nodes.length; i++) {
         const n = nodes[i];
         const isHover = i === hoverRef.current;
+        const c = tagColor(n.tags, palette);
         ctx.beginPath();
         ctx.arc(n.x, n.y, n.radius + (isHover ? 2 : 0), 0, Math.PI * 2);
-        ctx.fillStyle = isHover ? n.color : n.color + 'D8';
+        ctx.fillStyle = isHover ? c : c + 'D8';
         ctx.fill();
         if (isHover) {
-          ctx.strokeStyle = colors.graphRing;
+          ctx.strokeStyle = palette.graphRing;
           ctx.lineWidth = 2 / cam.zoom;
           ctx.stroke();
         }
@@ -246,7 +251,7 @@ export default function GraphView({ data, onSelectNode, width, height }: Props) 
       // Labels (only when zoomed in enough or hovered)
       const labelThreshold = 0.7;
       if (cam.zoom > labelThreshold || hoverRef.current >= 0) {
-        ctx.fillStyle = colors.graphLabel;
+        ctx.fillStyle = palette.graphLabel;
         ctx.font = `${11 / cam.zoom}px ${font.sans}`;
         ctx.textAlign = 'center';
         for (let i = 0; i < nodes.length; i++) {
