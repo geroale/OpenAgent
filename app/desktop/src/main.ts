@@ -60,12 +60,37 @@ function startStaticServer(): Promise<number> {
       '.map': 'application/json',
     };
 
-    const server = http.createServer((req, res) => {
-      let filePath = path.join(webBuildDir, req.url === '/' ? 'index.html' : req.url!);
+    if (!fs.existsSync(webBuildDir)) {
+      console.error(`[openagent] web-build directory missing: ${webBuildDir}`);
+      return reject(new Error(`web-build directory missing at ${webBuildDir}`));
+    }
 
-      // If file doesn't exist, serve index.html (SPA fallback)
-      if (!fs.existsSync(filePath)) {
-        filePath = path.join(webBuildDir, 'index.html');
+    const server = http.createServer((req, res) => {
+      // Strip query strings & fragments, decode percent-encoded chars
+      const rawUrl = (req.url || '/').split('?')[0].split('#')[0];
+      let urlPath: string;
+      try {
+        urlPath = decodeURIComponent(rawUrl);
+      } catch {
+        urlPath = rawUrl;
+      }
+
+      // Resolve and guard against path traversal (stay within webBuildDir)
+      let filePath = path.join(webBuildDir, urlPath === '/' ? 'index.html' : urlPath);
+      const resolved = path.resolve(filePath);
+      if (!resolved.startsWith(path.resolve(webBuildDir))) {
+        res.writeHead(403);
+        res.end('Forbidden');
+        return;
+      }
+
+      // SPA fallback: serve index.html when the file doesn't exist *and*
+      // it's not an asset request (assets should 404, not get HTML).
+      if (!fs.existsSync(filePath) || fs.statSync(filePath).isDirectory()) {
+        const ext = path.extname(filePath).toLowerCase();
+        if (ext === '' || ext === '.html') {
+          filePath = path.join(webBuildDir, 'index.html');
+        }
       }
 
       const ext = path.extname(filePath).toLowerCase();
@@ -75,7 +100,8 @@ function startStaticServer(): Promise<number> {
         const content = fs.readFileSync(filePath);
         res.writeHead(200, { 'Content-Type': contentType });
         res.end(content);
-      } catch {
+      } catch (err) {
+        console.error(`[openagent] 404 ${req.url} -> ${filePath}`);
         res.writeHead(404);
         res.end('Not found');
       }
@@ -85,6 +111,7 @@ function startStaticServer(): Promise<number> {
       const addr = server.address();
       const port = typeof addr === 'object' && addr ? addr.port : 0;
       staticServer = server;
+      console.log(`[openagent] static server listening on 127.0.0.1:${port} serving ${webBuildDir}`);
       resolve(port);
     });
 
