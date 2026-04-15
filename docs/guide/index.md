@@ -1,26 +1,26 @@
 # Documentation
 
-OpenAgent is model agnostic by design and offers four access surfaces: a hosted Web App plus three independent installable apps (Agent Server, CLI Client, Desktop App). The Agent Server runs the actual runtime; the Web App, CLI, and Desktop App are separate clients that connect to it.
+OpenAgent is a persistent AI agent framework. You run an **Agent Server** on a machine you control, then talk to it from the **Web App**, **Desktop App**, or **CLI** — all pointing at the same agent, sharing the same memory and tools.
 
-The Agent Server is available as a **standalone executable** (no Python required) or via pip. It supports **multiple independent agents** running in parallel, each with its own config, memory, database, and port.
+It's model-agnostic: Claude, GLM, Ollama, LM Studio, vLLM, or any OpenAI-compatible provider. Swap the model without losing memory or tool state. Run multiple independent agents side-by-side, each in its own folder.
 
-## Start Here
+## Start here
 
-- [Open the Web App](https://openagent.uno/app/)
-- [Getting Started (download + install)](./getting-started.md)
+- [Getting Started](./getting-started.md) — download, install, first run
+- [Open the Web App](https://openagent.uno/app/) — no install required
+- [Configuration reference](./config-reference.md)
+
+## Core concepts
+
+- [Models](./models.md) — pick a provider
+- [MCP tools](./mcp.md) — filesystem, editor, browser, web search, and more
+- [Channels](./channels.md) — Telegram, Discord, WhatsApp, WebSocket
+- [Memory & vault](./memory.md) — the markdown-based Obsidian vault
+- [Scheduler & Dream Mode](./scheduler.md) — recurring tasks and background work
+
+## Clients & operations
+
 - [Desktop App](./desktop-app.md)
-- [Configuration Reference](./config-reference.md)
-
-## Core Topics
-
-- [Models](./models.md)
-- [MCP Tools](./mcp.md)
-- [Channels](./channels.md)
-- [Memory & Vault](./memory.md)
-- [Scheduler & Dream Mode](./scheduler.md)
-
-## Operations
-
 - [Architecture](./services.md)
 - [Deployment](./deployment.md)
 - [Examples](/examples/)
