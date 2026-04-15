@@ -6,11 +6,31 @@
  *       proper URL routing which file:// can't provide)
  */
 
-import { app, BrowserWindow, shell, dialog, protocol } from 'electron';
+import { app, BrowserWindow, shell, dialog, protocol, ipcMain } from 'electron';
 import * as path from 'path';
 import * as fs from 'fs';
 import * as http from 'http';
 import { registerStorageHandlers } from './services/storage';
+
+const IMAGE_EXTS = new Set(['.png', '.jpg', '.jpeg', '.gif', '.webp', '.bmp', '.heic', '.tiff']);
+
+function registerDialogHandlers(): void {
+  ipcMain.handle('dialog:pickFiles', async () => {
+    const focused = BrowserWindow.getFocusedWindow();
+    const opts: Electron.OpenDialogOptions = {
+      properties: ['openFile', 'multiSelections'],
+    };
+    const result = focused
+      ? await dialog.showOpenDialog(focused, opts)
+      : await dialog.showOpenDialog(opts);
+    if (result.canceled || !result.filePaths.length) return [];
+    return result.filePaths.map((p) => ({
+      path: p,
+      filename: path.basename(p),
+      kind: IMAGE_EXTS.has(path.extname(p).toLowerCase()) ? 'image' : 'file',
+    }));
+  });
+}
 
 const isDev = !app.isPackaged;
 
@@ -185,6 +205,7 @@ function setupAutoUpdater(): void {
 
 app.whenReady().then(async () => {
   registerStorageHandlers();
+  registerDialogHandlers();
 
   // In production, start a local HTTP server for the web build
   // (Expo Router needs proper URL routing that file:// can't do)

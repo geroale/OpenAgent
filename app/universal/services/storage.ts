@@ -14,6 +14,7 @@ declare global {
       getItem: (key: string) => Promise<string | null>;
       setItem: (key: string, value: string) => Promise<void>;
       removeItem: (key: string) => Promise<void>;
+      pickFiles?: () => Promise<{ path: string; filename: string; kind: 'image' | 'file' }[]>;
     };
   }
 }

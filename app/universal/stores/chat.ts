@@ -3,7 +3,7 @@
  */
 
 import { create } from 'zustand';
-import type { ChatMessage, ChatSession, ServerMessage, ToolInfo } from '../../common/types';
+import type { Attachment, ChatMessage, ChatSession, ServerMessage, ToolInfo } from '../../common/types';
 
 let nextMsgId = 1;
 const genId = () => `msg-${nextMsgId++}-${Date.now()}`;
@@ -15,7 +15,7 @@ interface ChatState {
   createSession: () => string;
   setActiveSession: (id: string) => void;
   removeSession: (id: string) => void;
-  addUserMessage: (sessionId: string, text: string) => void;
+  addUserMessage: (sessionId: string, text: string, attachments?: Attachment[]) => void;
   handleServerMessage: (msg: ServerMessage) => void;
   clearAll: () => void;
 }
@@ -49,7 +49,7 @@ export const useChat = create<ChatState>((set, get) => ({
     return { sessions, activeSessionId };
   }),
 
-  addUserMessage: (sessionId, text) => set((s) => ({
+  addUserMessage: (sessionId, text, attachments) => set((s) => ({
     sessions: s.sessions.map((ses) =>
       ses.id !== sessionId ? ses : {
         ...ses,
@@ -60,8 +60,11 @@ export const useChat = create<ChatState>((set, get) => ({
           role: 'user' as const,
           text,
           timestamp: Date.now(),
+          attachments: attachments && attachments.length ? attachments : undefined,
         }],
-        title: ses.messages.length === 0 ? text.slice(0, 40) : ses.title,
+        title: ses.messages.length === 0
+          ? (text.slice(0, 40) || attachments?.[0]?.filename || 'New Chat')
+          : ses.title,
       },
     ),
   })),

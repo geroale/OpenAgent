@@ -2,11 +2,11 @@
 
 OpenAgent has three installable pieces plus a hosted Web App. You only need the **Agent Server** — the CLI and Desktop App are optional clients.
 
-<ReleaseDownloads />
-
 ## Agent Server
 
 The runtime. Install this on the machine where your agent should live.
+
+<ReleaseDownloads target="server" />
 
 **macOS** — double-click the `.pkg`. **Linux / Windows** — extract the archive. Or from a terminal:
 
@@ -24,7 +24,11 @@ The folder becomes your agent — config, memory, and database live inside `./my
 
 ## CLI Client
 
-A terminal client for talking to a running server. Download the archive above for your platform, extract it, then:
+A terminal client for talking to a running server.
+
+<ReleaseDownloads target="cli" />
+
+Extract the archive, then:
 
 ```bash
 openagent-cli connect localhost:8765 --token mysecret
@@ -32,13 +36,11 @@ openagent-cli connect localhost:8765 --token mysecret
 
 ## Desktop App
 
-A native chat window. Download the installer for your platform:
+A native chat window for your agent.
 
-- **macOS** — `.dmg`
-- **Windows** — `.exe`
-- **Linux** — `.AppImage` or `.deb`
+<ReleaseDownloads target="desktop" />
 
-Launch it and point it at your Agent Server's address. Prefer no install? Use the hosted [Web App](https://openagent.uno/app/).
+Launch the installer and point it at your Agent Server's address. Prefer no install? Use the hosted [Web App](https://openagent.uno/app/).
 
 ## Next steps
 

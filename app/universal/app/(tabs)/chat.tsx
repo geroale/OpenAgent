@@ -7,7 +7,7 @@ import Feather from '@expo/vector-icons/Feather';
 import {
   View, Text, TextInput, TouchableOpacity, ScrollView, StyleSheet, Platform,
 } from 'react-native';
-import type { ToolInfo } from '../../common/types';
+import type { Attachment, ToolInfo } from '../../common/types';
 import { useConnection } from '../../stores/connection';
 import { useChat } from '../../stores/chat';
 import Markdown from '../../components/Markdown';
@@ -30,7 +30,8 @@ export default function ChatScreen() {
   } = useChat();
 
   const [input, setInput] = useState('');
-  const [pendingFile, setPendingFile] = useState<PendingFile | null>(null);
+  const [pendingFiles, setPendingFiles] = useState<PendingFile[]>([]);
+  const isDesktop = typeof window !== 'undefined' && !!window.desktop?.isDesktop;
   const [recording, setRecording] = useState(false);
   const mediaRecorderRef = useRef<any>(null);
   const chunksRef = useRef<Blob[]>([]);
@@ -46,21 +47,33 @@ export default function ChatScreen() {
   const handleSend = () => {
     if (!ws || !activeSessionId) return;
     const text = input.trim();
-    if (!text && !pendingFile) return;
+    if (!text && pendingFiles.length === 0) return;
 
     let msg = text;
     let displayMsg = text;
 
-    if (pendingFile) {
-      const fileHeader = `The user attached a file:\n- ${pendingFile.kind}: ${pendingFile.filename} — local path: ${pendingFile.remotePath}\nUse the Read tool to inspect it.`;
+    const attachments: Attachment[] = pendingFiles.map((f) => ({
+      type: f.kind,
+      path: f.remotePath,
+      filename: f.filename,
+    }));
+
+    if (pendingFiles.length > 0) {
+      const lines = pendingFiles.map(
+        (f) => `- ${f.kind}: ${f.filename} — local path: ${f.remotePath}`,
+      );
+      const noun = pendingFiles.length === 1 ? 'a file' : `${pendingFiles.length} files`;
+      const fileHeader = `The user attached ${noun}:\n${lines.join('\n')}\nUse the Read tool to inspect ${pendingFiles.length === 1 ? 'it' : 'them'}.`;
       msg = text ? `${fileHeader}\n\nUser message: ${text}` : fileHeader;
-      displayMsg = text ? `Attached file: ${pendingFile.filename}\n${text}` : `Attached file: ${pendingFile.filename}`;
+      // Keep the user bubble's text to just the typed message; the
+      // attachments render as chips/thumbnails below the text.
+      displayMsg = text;
     }
 
-    addUserMessage(activeSessionId, displayMsg);
+    addUserMessage(activeSessionId, displayMsg, attachments.length ? attachments : undefined);
     ws.sendMessage(msg, activeSessionId);
     setInput('');
-    setPendingFile(null);
+    setPendingFiles([]);
   };
 
   const handleKeyDown = (e: any) => {
@@ -72,21 +85,52 @@ export default function ChatScreen() {
 
   // ── File picker ──
 
-  const handleFilePick = () => {
+  const handleFilePick = async () => {
+    // Desktop: use Electron's native dialog + skip the HTTP upload entirely.
+    // The agent runs locally, so the real file path is directly usable by
+    // the Read tool — no tmp-copy, no CORS/port worries.
+    if (isDesktop && window.desktop?.pickFiles) {
+      try {
+        const picked = await window.desktop.pickFiles();
+        if (picked.length) {
+          setPendingFiles((prev) => [
+            ...prev,
+            ...picked.map((f) => ({ filename: f.filename, remotePath: f.path, kind: f.kind })),
+          ]);
+        }
+      } catch (e: any) {
+        console.error('Native picker failed:', e);
+      }
+      return;
+    }
+
     if (Platform.OS !== 'web') return;
+
+    // Browser path: DOM file input + upload each selected file to /api/upload
+    // so the agent on a different host can reach it.
     const fileInput = document.createElement('input');
     fileInput.type = 'file';
+    fileInput.multiple = true;
     fileInput.accept = 'image/*,.pdf,.txt,.md,.csv,.json,.py,.js,.ts,.yaml,.yml,.log';
+    // Some browsers/webviews don't fire `change` for detached inputs — attach
+    // to the DOM, click, then remove once we're done.
+    fileInput.style.display = 'none';
+    document.body.appendChild(fileInput);
     fileInput.onchange = async () => {
-      const file = fileInput.files?.[0];
-      if (!file) return;
-      try {
-        const { path, filename } = await uploadFile(file);
-        const kind = file.type?.startsWith('image/') ? 'image' as const : 'file' as const;
-        setPendingFile({ filename, remotePath: path, kind });
-      } catch (e: any) {
-        console.error('Upload failed:', e);
-      }
+      const files = Array.from(fileInput.files || []);
+      document.body.removeChild(fileInput);
+      if (files.length === 0) return;
+      const uploads = await Promise.allSettled(files.map((f) => uploadFile(f)));
+      const next: PendingFile[] = [];
+      uploads.forEach((u, i) => {
+        if (u.status === 'fulfilled') {
+          const kind = files[i].type?.startsWith('image/') ? 'image' as const : 'file' as const;
+          next.push({ filename: u.value.filename, remotePath: u.value.path, kind });
+        } else {
+          console.error('Upload failed:', files[i].name, u.reason);
+        }
+      });
+      if (next.length) setPendingFiles((prev) => [...prev, ...next]);
     };
     fileInput.click();
   };
@@ -178,7 +222,18 @@ export default function ChatScreen() {
                         {msg.model && <Text style={styles.modelText}>Model: {msg.model}</Text>}
                       </>
                     ) : (
-                      <Text style={[styles.bubbleText, styles.userText]}>{msg.text}</Text>
+                      <>
+                        {msg.attachments && msg.attachments.length > 0 && (
+                          <View style={styles.attachmentsRow}>
+                            {msg.attachments.map((att, i) => (
+                              <AttachmentView key={`${att.path}-${i}`} attachment={att} />
+                            ))}
+                          </View>
+                        )}
+                        {msg.text ? (
+                          <Text style={[styles.bubbleText, styles.userText]}>{msg.text}</Text>
+                        ) : null}
+                      </>
                     )}
                   </View>
                 )
@@ -193,22 +248,28 @@ export default function ChatScreen() {
               )}
             </ScrollView>
 
-            {/* Pending file badge */}
-            {pendingFile && (
+            {/* Pending file badges */}
+            {pendingFiles.length > 0 && (
               <View style={styles.pendingBar}>
-                <View style={styles.pendingContent}>
-                  <Feather name="paperclip" size={12} color={colors.primary} />
-                  <Text style={styles.pendingText}>{pendingFile.filename}</Text>
+                <View style={styles.pendingList}>
+                  {pendingFiles.map((f, idx) => (
+                    <View key={`${f.remotePath}-${idx}`} style={styles.pendingChip}>
+                      <Feather name="paperclip" size={11} color={colors.primary} />
+                      <Text style={styles.pendingText} numberOfLines={1}>{f.filename}</Text>
+                      <TouchableOpacity
+                        onPress={() => setPendingFiles((prev) => prev.filter((_, i) => i !== idx))}
+                      >
+                        <Feather name="x" size={12} color={colors.textMuted} style={styles.pendingRemove} />
+                      </TouchableOpacity>
+                    </View>
+                  ))}
                 </View>
-                <TouchableOpacity onPress={() => setPendingFile(null)}>
-                  <Feather name="x" size={13} color={colors.textMuted} style={styles.pendingRemove} />
-                </TouchableOpacity>
               </View>
             )}
 
             {/* Input bar */}
             <View style={styles.inputBar}>
-              {Platform.OS === 'web' && (
+              {(Platform.OS === 'web' || isDesktop) && (
                 <TouchableOpacity style={styles.iconBtn} onPress={handleFilePick}>
                   <Feather name="paperclip" size={15} color={colors.textSecondary} />
                 </TouchableOpacity>
@@ -250,10 +311,10 @@ export default function ChatScreen() {
                 />
               )}
               <PrimaryButton
-                style={[styles.sendBtn, (!input.trim() && !pendingFile) && styles.sendBtnDisabled]}
+                style={[styles.sendBtn, (!input.trim() && pendingFiles.length === 0) && styles.sendBtnDisabled]}
                 contentStyle={styles.sendBtnInner}
                 onPress={handleSend}
-                disabled={(!input.trim() && !pendingFile) || activeSession.isProcessing}
+                disabled={(!input.trim() && pendingFiles.length === 0) || activeSession.isProcessing}
               >
                 <Feather name="arrow-up" size={15} color={colors.textInverse} />
               </PrimaryButton>
@@ -266,6 +327,23 @@ export default function ChatScreen() {
         )}
       </View>
     </ResponsiveSidebar>
+  );
+}
+
+/** File/image chip shown inside user message bubbles. */
+function AttachmentView({ attachment }: { attachment: Attachment }) {
+  const iconName = attachment.type === 'image'
+    ? 'image'
+    : attachment.type === 'voice'
+      ? 'mic'
+      : attachment.type === 'video'
+        ? 'film'
+        : 'file';
+  return (
+    <View style={styles.attachmentChip}>
+      <Feather name={iconName as any} size={12} color={colors.textInverse} />
+      <Text style={styles.attachmentText} numberOfLines={1}>{attachment.filename}</Text>
+    </View>
   );
 }
 
@@ -400,18 +478,37 @@ const styles = StyleSheet.create({
 
   bubbleText: { color: colors.text, fontSize: 14, lineHeight: 21 },
   userText: { color: colors.textInverse },
+
+  // Attachment chips inside user bubble
+  attachmentsRow: { flexDirection: 'row', flexWrap: 'wrap', marginBottom: 6 },
+  attachmentChip: {
+    flexDirection: 'row', alignItems: 'center',
+    backgroundColor: 'rgba(255,255,255,0.18)',
+    borderRadius: 10, paddingHorizontal: 8, paddingVertical: 4,
+    marginRight: 6, marginBottom: 4, maxWidth: 220,
+  },
+  attachmentText: {
+    color: colors.textInverse, fontSize: 12, fontWeight: '500',
+    marginLeft: 6, flexShrink: 1,
+  },
+
   modelText: { color: colors.textMuted, fontSize: 11, marginTop: 8 },
   statusText: { color: colors.textMuted, fontSize: 13, fontStyle: 'italic', marginLeft: 6 },
 
-  // Pending file
+  // Pending files
   pendingBar: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    paddingHorizontal: 20, paddingVertical: 6,
+    paddingHorizontal: 16, paddingVertical: 6,
     backgroundColor: colors.primaryLight, borderTopWidth: 1, borderTopColor: colors.border,
   },
-  pendingContent: { flexDirection: 'row', alignItems: 'center' },
-  pendingText: { fontSize: 12, color: colors.primary, fontWeight: '500', marginLeft: 6 },
-  pendingRemove: { padding: 4 },
+  pendingList: { flexDirection: 'row', flexWrap: 'wrap' },
+  pendingChip: {
+    flexDirection: 'row', alignItems: 'center',
+    backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border,
+    borderRadius: 12, paddingHorizontal: 8, paddingVertical: 4,
+    marginRight: 6, marginVertical: 2, maxWidth: 240,
+  },
+  pendingText: { fontSize: 12, color: colors.primary, fontWeight: '500', marginLeft: 4, marginRight: 4, flexShrink: 1 },
+  pendingRemove: { padding: 2 },
 
   // Input
   inputBar: {

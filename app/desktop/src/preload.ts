@@ -16,4 +16,10 @@ contextBridge.exposeInMainWorld('desktop', {
     ipcRenderer.invoke('storage:set', key, value),
   removeItem: (key: string): Promise<void> =>
     ipcRenderer.invoke('storage:remove', key),
+
+  // Native file picker — returns absolute paths for locally-selected files.
+  // On desktop the agent runs on the same machine, so the path is directly
+  // usable and no HTTP upload round-trip is needed.
+  pickFiles: (): Promise<{ path: string; filename: string; kind: 'image' | 'file' }[]> =>
+    ipcRenderer.invoke('dialog:pickFiles'),
 });
