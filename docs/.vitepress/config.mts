@@ -4,6 +4,33 @@ const repo = "https://github.com/geroale/OpenAgent";
 const site = "https://openagent.uno/";
 const base = "/";
 
+const guideSidebar = [
+  {
+    text: "Guide",
+    items: [
+      { text: "Overview", link: "/guide/" },
+      { text: "Getting Started", link: "/guide/getting-started" },
+      { text: "Models", link: "/guide/models" },
+      { text: "MCP Tools", link: "/guide/mcp" },
+      { text: "Channels", link: "/guide/channels" },
+      { text: "Memory & Vault", link: "/guide/memory" },
+      { text: "Scheduler & Dream Mode", link: "/guide/scheduler" },
+      { text: "Desktop App", link: "/guide/desktop-app" },
+      { text: "Architecture", link: "/guide/services" },
+      { text: "Deployment", link: "/guide/deployment" },
+      { text: "Config Reference", link: "/guide/config-reference" },
+    ],
+  },
+  {
+    text: "Examples",
+    items: [
+      { text: "Overview", link: "/examples/" },
+      { text: "Example Config", link: "/examples/openagent-yaml" },
+      { text: "systemd Service", link: "/examples/workspace-mcp-service" },
+    ],
+  },
+];
+
 
 export default defineConfig({
   title: "OpenAgent",
@@ -52,37 +79,10 @@ export default defineConfig({
       { text: "Download", link: "/guide/getting-started" },
       { text: "Web App", link: "https://openagent.uno/app/" },
       { text: "Docs", link: "/guide/" },
-      { text: "Examples", link: "/examples/" },
     ],
     sidebar: {
-      "/guide/": [
-        {
-          text: "Documentation",
-          items: [
-            { text: "Overview", link: "/guide/" },
-            { text: "Getting Started", link: "/guide/getting-started" },
-            { text: "Models", link: "/guide/models" },
-            { text: "MCP Tools", link: "/guide/mcp" },
-            { text: "Channels", link: "/guide/channels" },
-            { text: "Memory & Vault", link: "/guide/memory" },
-            { text: "Scheduler & Dream Mode", link: "/guide/scheduler" },
-            { text: "Desktop App", link: "/guide/desktop-app" },
-            { text: "Architecture", link: "/guide/services" },
-            { text: "Deployment", link: "/guide/deployment" },
-            { text: "Config Reference", link: "/guide/config-reference" },
-          ],
-        },
-      ],
-      "/examples/": [
-        {
-          text: "Examples",
-          items: [
-            { text: "Overview", link: "/examples/" },
-            { text: "Example Config", link: "/examples/openagent-yaml" },
-            { text: "systemd Service", link: "/examples/workspace-mcp-service" },
-          ],
-        },
-      ],
+      "/guide/": guideSidebar,
+      "/examples/": guideSidebar,
     },
     socialLinks: [{ icon: "github", link: repo }],
     search: {

@@ -23,4 +23,8 @@ It's model-agnostic: Claude, GLM, Ollama, LM Studio, vLLM, or any OpenAI-compati
 - [Desktop App](./desktop-app.md)
 - [Architecture](./services.md)
 - [Deployment](./deployment.md)
-- [Examples](/examples/)
+
+## Examples
+
+- [Example `openagent.yaml`](/examples/openagent-yaml)
+- [Example `workspace-mcp.service`](/examples/workspace-mcp-service)
