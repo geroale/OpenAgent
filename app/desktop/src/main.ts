@@ -37,7 +37,13 @@ let staticPort = 0;
 
 function startStaticServer(): Promise<number> {
   return new Promise((resolve, reject) => {
-    const webBuildDir = path.resolve(__dirname, '..', 'web-build');
+    // When packaged, web-build is shipped as an extraResource (outside the
+    // asar), because electron-builder's default file filter strips any path
+    // containing `node_modules` — which Expo's export uses for vendored
+    // asset paths (e.g. `assets/node_modules/@react-navigation/.../*.png`).
+    const webBuildDir = app.isPackaged
+      ? path.join(process.resourcesPath, 'web-build')
+      : path.resolve(__dirname, '..', 'web-build');
 
     const mimeTypes: Record<string, string> = {
       '.html': 'text/html',

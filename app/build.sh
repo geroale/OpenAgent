@@ -31,41 +31,49 @@ build_desktop() {
     # 1. Build the web app
     build_web
 
-    # 2. Copy into desktop/ and fix paths for file:// protocol
+    # 2. Copy into desktop/
+    # The static server in desktop/src/main.ts serves web-build over HTTP,
+    # so the absolute `/_expo/...` paths Expo emits work as-is.
     rm -rf "$SCRIPT_DIR/desktop/web-build"
     cp -r "$SCRIPT_DIR/universal/dist" "$SCRIPT_DIR/desktop/web-build"
-
-    # Expo generates absolute paths (/favicon.ico, /_expo/...) which
-    # don't work with Electron's file:// loading. Make them relative.
-    sed -i.bak 's|href="/|href="./|g; s|src="/|src="./|g' "$SCRIPT_DIR/desktop/web-build/index.html"
-    rm -f "$SCRIPT_DIR/desktop/web-build/index.html.bak"
 
     # 3. Package with electron-builder
     cd "$SCRIPT_DIR/desktop"
 
-    # On macOS, set signing & notarization env vars (from keychain if not already set)
+    local BUILDER_FLAGS=()
+
     if [[ "$TARGET" == "--mac" ]]; then
         export APPLE_ID="${APPLE_ID:-geroale2000@gmail.com}"
         export APPLE_TEAM_ID="${APPLE_TEAM_ID:-B4KWCQFY8V}"
+
+        # Notarization: use creds if present or discoverable; otherwise skip.
+        # Release builds run in CI with secrets; local builds stay unsigned.
         if [[ -z "${APPLE_APP_SPECIFIC_PASSWORD:-}" ]]; then
-            APPLE_APP_SPECIFIC_PASSWORD=$(security find-generic-password -a "$APPLE_ID" -s "AC_PASSWORD" -w 2>/dev/null || true)
-            if [[ -n "$APPLE_APP_SPECIFIC_PASSWORD" ]]; then
-                export APPLE_APP_SPECIFIC_PASSWORD
-                echo "🔑 Loaded notarization password from Keychain"
-            else
-                echo "⚠️  No APPLE_APP_SPECIFIC_PASSWORD set and none found in Keychain."
-                echo "   Notarization will fail. Generate one at https://account.apple.com"
-                read -rp "Continue without notarization? [y/N] " answer
-                if [[ "${answer,,}" != "y" ]]; then
-                    echo "Aborted."
-                    exit 1
-                fi
-            fi
+            APPLE_APP_SPECIFIC_PASSWORD=$(security find-generic-password \
+                -a "$APPLE_ID" -s "AC_PASSWORD" -w 2>/dev/null || true)
+            [[ -n "$APPLE_APP_SPECIFIC_PASSWORD" ]] && export APPLE_APP_SPECIFIC_PASSWORD
+        fi
+
+        local HAS_SIGN_IDENTITY=0
+        if [[ -n "${CSC_LINK:-}" ]] || \
+           security find-identity -v -p codesigning 2>/dev/null | grep -q "Developer ID Application"; then
+            HAS_SIGN_IDENTITY=1
+        fi
+
+        if [[ "${SKIP_SIGN:-0}" == "1" || "$HAS_SIGN_IDENTITY" == "0" ]]; then
+            echo "🔓 No code-signing identity available — building unsigned (local dev build)"
+            BUILDER_FLAGS+=(-c.mac.identity=null -c.mac.notarize=false)
+        elif [[ "${SKIP_NOTARIZE:-0}" == "1" || -z "${APPLE_APP_SPECIFIC_PASSWORD:-}" ]]; then
+            echo "📝 Signing without notarization (SKIP_NOTARIZE=1 or no Apple password)"
+            BUILDER_FLAGS+=(-c.mac.notarize=false)
+        else
+            echo "🔑 Signing + notarizing with Apple credentials"
         fi
     fi
 
     echo "📦 Packaging Electron app ($TARGET)..."
-    npx electron-builder "$TARGET"
+    # ${arr[@]+"${arr[@]}"} expands to nothing when empty (bash 3.2-safe under `set -u`)
+    npx electron-builder "$TARGET" ${BUILDER_FLAGS[@]+"${BUILDER_FLAGS[@]}"}
     echo ""
     echo "✅ Desktop build ready at desktop/release/"
 }
