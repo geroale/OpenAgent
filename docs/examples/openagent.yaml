@@ -43,6 +43,19 @@ model:
   provider: claude-cli            # use Claude Pro/Max membership instead of API
   model_id: claude-sonnet-4-6
   permission_mode: bypass         # auto-approve tool calls (agent deployments)
+  # Optional Claude SDK timing knobs. Increase only for genuinely long jobs;
+  # omit to keep the built-in defaults.
+  # idle_timeout_seconds: 900
+  # hard_timeout_seconds: 1800
+  # idle_ttl_seconds: 86400
+
+# Linux only: extra raw systemd [Service] directives for the generated user
+# unit. Omit this block entirely if you want no explicit memory/task caps.
+# service:
+#   systemd:
+#     MemoryHigh: 2500M
+#     MemoryMax: 3500M
+#     MemorySwapMax: 1G
 
 memory:
   db_path: ~/.openagent/openagent.db

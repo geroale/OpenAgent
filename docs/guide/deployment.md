@@ -54,6 +54,27 @@ OpenAgent registers as a platform-native service. When using agent directories, 
 - **macOS** — `com.openagent.<dirname>.plist`
 - **Windows** — `OpenAgent-<dirname>` task
 
+### Optional systemd limits
+
+On Linux, the generated user unit can include extra raw `[Service]`
+directives from `openagent.yaml`. This is the right place to add
+resource caps such as `MemoryHigh`, `MemoryMax`, or `MemorySwapMax`.
+
+If you omit the section entirely, OpenAgent writes no memory cap lines at
+all. Setting a key to `null` or an empty string also omits it.
+
+```yaml
+service:
+  systemd:
+    MemoryHigh: 2500M
+    MemoryMax: 3500M
+    MemorySwapMax: 1G
+    TasksMax: 4096
+```
+
+Re-run `openagent setup` after changing these values so the systemd unit is
+rewritten and reloaded. On macOS and Windows this section is ignored.
+
 ```bash
 # Linux (default agent)
 systemctl --user status openagent

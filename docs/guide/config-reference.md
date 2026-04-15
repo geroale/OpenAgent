@@ -93,9 +93,30 @@ auto_update:
   enabled: true
   mode: auto
   check_interval: "17 */6 * * *"
+
+service:
+  # Linux only: optional raw systemd [Service] overrides for the generated
+  # user unit. Omit this block entirely to leave OpenAgent uncapped.
+  systemd:
+    MemoryHigh: 2500M
+    MemoryMax: 3500M
+    MemorySwapMax: 1G
 ```
 
 Environment variables are substituted using `${VAR_NAME}` syntax.
+
+For `claude-cli`, you can optionally tune the provider-managed session
+timeouts:
+
+```yaml
+model:
+  provider: claude-cli
+  model_id: claude-sonnet-4-6
+  permission_mode: bypass
+  idle_timeout_seconds: 900
+  hard_timeout_seconds: 1800
+  idle_ttl_seconds: 86400
+```
 
 ## CLI Reference
 
