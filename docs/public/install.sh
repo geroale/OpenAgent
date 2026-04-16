@@ -148,8 +148,16 @@ if [ "$OS" = "macos" ]; then
     if [ -z "$BINARY" ]; then
         BINARY=$(find "$TMP/pkg-expanded" -type f -name "$APP" 2>/dev/null | head -1)
     fi
-    # Pick up the optional computer-control sidecar if the .pkg ships it.
-    SIDECAR=$(find "$TMP/pkg-expanded" -type f -name "openagent-computer-control" 2>/dev/null | head -1)
+    # Prefer the ``openagent-computer-control.app`` bundle (v0.6.9+).
+    # macOS TCC only recognises processes from proper .app bundles for
+    # Accessibility / Screen Recording prompts — a bare CLI binary
+    # can't trigger dialogs or register in Privacy & Security settings
+    # when spawned by launchd. Fall back to the bare binary if the
+    # .pkg still ships the old layout.
+    SIDECAR=$(find "$TMP/pkg-expanded" -type d -name "openagent-computer-control.app" 2>/dev/null | head -1)
+    if [ -z "$SIDECAR" ]; then
+        SIDECAR=$(find "$TMP/pkg-expanded" -type f -name "openagent-computer-control" 2>/dev/null | head -1)
+    fi
 else
     tar xzf "$TMP/$ARCHIVE" -C "$TMP"
     BINARY="$TMP/$APP"
@@ -179,21 +187,35 @@ echo "→ Installing to $DEST"
 cp "$BINARY" "$DEST"
 chmod +x "$DEST"
 
-# Install the computer-control sidecar next to the main binary. This
-# path (``$PREFIX/openagent-computer-control``) is what
-# ``_resolve_native_binary`` looks for at runtime — the Rust binary
-# stays OUTSIDE the PyInstaller archive so its macOS Developer-ID
-# signature (stable ``com.openagent.computer-control`` identifier)
-# survives intact and TCC grants for Accessibility / Screen Recording
-# persist across updates.
-if [ "$PRODUCT" = "server" ] && [ -n "${SIDECAR:-}" ] && [ -f "$SIDECAR" ]; then
+# Install the computer-control sidecar next to the main binary. The
+# Rust binary stays OUTSIDE the PyInstaller archive so its Developer-ID
+# signature survives intact. On macOS it ships as a proper ``.app``
+# bundle (v0.6.9+) — required for TCC to recognise it as an app and
+# register it in Privacy & Security → Accessibility. On Linux/Windows
+# it's a bare binary.
+if [ "$PRODUCT" = "server" ] && [ -n "${SIDECAR:-}" ] && [ -e "$SIDECAR" ]; then
     SIDECAR_NAME=$(basename "$SIDECAR")
     SIDECAR_DEST="$PREFIX/$SIDECAR_NAME"
-    echo "→ Installing sidecar $SIDECAR_NAME to $SIDECAR_DEST"
-    cp "$SIDECAR" "$SIDECAR_DEST"
-    chmod +x "$SIDECAR_DEST"
-    if [ "$OS" = "macos" ] && command -v xattr >/dev/null 2>&1; then
-        xattr -dr com.apple.quarantine "$SIDECAR_DEST" 2>/dev/null || true
+    if [ -d "$SIDECAR" ]; then
+        # macOS .app bundle — copy the whole directory tree with
+        # ``cp -R`` and clear any residual quarantine xattrs on the
+        # Mach-O inside so macOS doesn't refuse to launch it on first
+        # run. ``rm -rf`` the destination first so stale contents from
+        # an older version don't linger.
+        echo "→ Installing $SIDECAR_NAME bundle to $SIDECAR_DEST"
+        rm -rf "$SIDECAR_DEST"
+        cp -R "$SIDECAR" "$SIDECAR_DEST"
+        if command -v xattr >/dev/null 2>&1; then
+            xattr -dr com.apple.quarantine "$SIDECAR_DEST" 2>/dev/null || true
+        fi
+    else
+        # Bare binary (Linux / Windows / fallback on macOS older pkgs).
+        echo "→ Installing sidecar $SIDECAR_NAME to $SIDECAR_DEST"
+        cp "$SIDECAR" "$SIDECAR_DEST"
+        chmod +x "$SIDECAR_DEST"
+        if [ "$OS" = "macos" ] && command -v xattr >/dev/null 2>&1; then
+            xattr -dr com.apple.quarantine "$SIDECAR_DEST" 2>/dev/null || true
+        fi
     fi
 fi
 
