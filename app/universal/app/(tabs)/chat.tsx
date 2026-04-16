@@ -567,20 +567,23 @@ const styles = StyleSheet.create({
   sidebarInner: { flex: 1, padding: 10, gap: 2 },
   sidebarHead: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    paddingHorizontal: 8, paddingVertical: 6, marginBottom: 4,
+    paddingHorizontal: 6, paddingTop: 4, paddingBottom: 6, marginBottom: 2,
   },
   sidebarKicker: {
     fontSize: 10, fontWeight: '600', color: colors.textMuted,
-    textTransform: 'uppercase', letterSpacing: 0.8,
+    textTransform: 'uppercase', letterSpacing: 1,
   },
   newBtn: {
-    flexDirection: 'row', alignItems: 'center', gap: 5,
-    paddingHorizontal: 8, paddingVertical: 4,
+    flexDirection: 'row', alignItems: 'center', gap: 4,
+    paddingHorizontal: 7, paddingVertical: 3,
     borderRadius: radius.sm,
     borderWidth: 1, borderColor: colors.border,
     backgroundColor: colors.surface,
   },
-  newBtnText: { fontSize: 11, fontWeight: '500', color: colors.text },
+  newBtnText: {
+    fontSize: 10, fontWeight: '600', color: colors.textSecondary,
+    textTransform: 'uppercase', letterSpacing: 0.8,
+  },
   sessionList: { flex: 1 },
   sessionItem: {
     position: 'relative',

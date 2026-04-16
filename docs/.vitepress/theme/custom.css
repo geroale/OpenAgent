@@ -43,10 +43,11 @@
   --vp-button-alt-hover-border: #D9D5CC;
   --vp-button-alt-text: #1A1915;
 
-  /* Code */
-  --vp-code-bg: #FAFAF7;
-  --vp-code-block-bg: #17151F;
-  --vp-code-block-color: #F5F2EA;
+  /* Code — soft warm paper on light theme so shiki's dark tokens stay
+     readable. Dark-theme override lives under `.dark` below. */
+  --vp-code-bg: #F5F2EC;
+  --vp-code-block-bg: #F5F2EC;
+  --vp-code-block-color: #1A1915;
   --vp-code-line-highlight-color: rgba(217, 72, 65, 0.08);
   --vp-code-font-family: 'Geist Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
 }
@@ -71,6 +72,8 @@
   --vp-button-alt-hover-border: #3A3644;
   --vp-button-alt-text: #F5F2EA;
   --vp-code-bg: #141218;
+  --vp-code-block-bg: #141218;
+  --vp-code-block-color: #F5F2EA;
 }
 
 /* Global refinements */
@@ -119,7 +122,16 @@ h1, h2, h3, h4, h5, h6 {
 
 /* Hero refinements */
 .VPHomeHero {
-  padding-block: clamp(2rem, 6vw, 5rem) !important;
+  padding-top: clamp(5rem, 10vw, 9rem) !important;
+  padding-bottom: clamp(3rem, 6vw, 5rem) !important;
+}
+
+/* Extra breathing room on wide screens where the nav feels close to
+   the hero name */
+@media (min-width: 960px) {
+  .VPHomeHero {
+    padding-top: 9rem !important;
+  }
 }
 
 .VPHomeHero .main {
