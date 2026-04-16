@@ -1,7 +1,7 @@
 {
   "name": "openagent-desktop",
   "description": "Persistent AI agent framework with MCP tools, long-term memory, and multi-channel support.",
-  "version": "0.5.27",
+  "version": "0.5.28",
   "private": true,
   "productName": "OpenAgent",
   "homepage": "https://openagent.uno/",
