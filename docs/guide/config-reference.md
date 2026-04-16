@@ -79,11 +79,11 @@ services:
     folder_id: openagent-memories
 
 scheduler:
-  enabled: true
-  tasks:
-    - name: health-check
-      cron: "*/30 * * * *"
-      prompt: "Check services and alert if down."
+  enabled: true       # global on/off switch for the scheduler loop
+  # tasks: [...]      # DEPRECATED — tasks now live in SQLite. Manage them
+                      # from the app's Tasks tab, the scheduler MCP, or the
+                      # `openagent task` CLI. Legacy entries listed here are
+                      # seeded into the DB once at startup with a warning.
 
 dream_mode:
   enabled: true

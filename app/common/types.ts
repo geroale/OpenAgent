@@ -171,3 +171,35 @@ export interface HealthResponse {
   version: string;
   connected_clients: number;
 }
+
+// ── Scheduled Tasks ──
+
+export interface ScheduledTask {
+  id: string;
+  name: string;
+  cron_expression: string;
+  prompt: string;
+  enabled: boolean;
+  last_run: number | null;
+  next_run: number | null;
+  created_at: number;
+  updated_at: number;
+  run_once: boolean;
+  run_at?: number;
+  run_at_iso?: string;
+  last_run_iso?: string;
+  next_run_iso?: string;
+  created_at_iso?: string;
+  updated_at_iso?: string;
+}
+
+export interface CreateScheduledTaskInput {
+  name: string;
+  cron_expression: string;
+  prompt: string;
+  enabled?: boolean;
+}
+
+export type UpdateScheduledTaskInput = Partial<
+  Pick<ScheduledTask, 'name' | 'cron_expression' | 'prompt' | 'enabled'>
+>;

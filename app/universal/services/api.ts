@@ -2,7 +2,7 @@
  * REST API client for OpenAgent vault operations.
  */
 
-import type { VaultNote, GraphData, AgentConfig, ModelConfig, ProviderConfig, ModelsResponse, UsageData, ModelCatalogEntry, DailyUsageEntry } from '../../common/types';
+import type { VaultNote, GraphData, AgentConfig, ModelConfig, ProviderConfig, ModelsResponse, UsageData, ModelCatalogEntry, DailyUsageEntry, ScheduledTask, CreateScheduledTaskInput, UpdateScheduledTaskInput } from '../../common/types';
 
 let baseUrl = '';
 
@@ -41,6 +41,16 @@ async function del(path: string): Promise<void> {
   if (!res.ok) throw new Error(`API ${res.status}: ${await res.text()}`);
 }
 
+async function patch<T>(path: string, body: object): Promise<T> {
+  const res = await fetch(`${baseUrl}${path}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) throw new Error(`API ${res.status}: ${await res.text()}`);
+  return res.json();
+}
+
 // ── Vault API ──
 
 export async function listNotes(): Promise<VaultNote[]> {
@@ -76,6 +86,26 @@ export async function searchNotes(query: string): Promise<VaultNote[]> {
 
 export async function getGraph(): Promise<GraphData> {
   return get<GraphData>('/api/vault/graph');
+}
+
+// ── Scheduled Tasks API ──
+
+export async function getScheduledTasks(enabledOnly: boolean = false): Promise<ScheduledTask[]> {
+  const q = enabledOnly ? '?enabled_only=true' : '';
+  const data = await get<{ tasks: ScheduledTask[] }>(`/api/scheduled-tasks${q}`);
+  return data.tasks;
+}
+
+export async function createScheduledTask(input: CreateScheduledTaskInput): Promise<ScheduledTask> {
+  return post<ScheduledTask>('/api/scheduled-tasks', input);
+}
+
+export async function updateScheduledTask(id: string, input: UpdateScheduledTaskInput): Promise<ScheduledTask> {
+  return patch<ScheduledTask>(`/api/scheduled-tasks/${encodeURIComponent(id)}`, input);
+}
+
+export async function deleteScheduledTask(id: string): Promise<void> {
+  await del(`/api/scheduled-tasks/${encodeURIComponent(id)}`);
 }
 
 // ── File Upload ──

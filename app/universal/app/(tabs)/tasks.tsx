@@ -1,6 +1,13 @@
 import { colors } from '../../theme';
 /**
  * Tasks screen — view and manage scheduled cron tasks.
+ *
+ * Tasks live in the backend SQLite database, served over
+ * /api/scheduled-tasks. Changes take effect within ~30 seconds (the
+ * scheduler's next tick) — no restart required.
+ *
+ * The only config-backed piece is the global `scheduler.enabled` kill
+ * switch, which still flips via PATCH /api/config/scheduler.
  */
 
 import Feather from '@expo/vector-icons/Feather';
@@ -10,95 +17,91 @@ import {
 } from 'react-native';
 import { useConnection } from '../../stores/connection';
 import { useConfig } from '../../stores/config';
+import { useTasks } from '../../stores/tasks';
 import { setBaseUrl } from '../../services/api';
 import { useConfirm } from '../../components/ConfirmDialog';
 import PrimaryButton from '../../components/PrimaryButton';
 import ThemedSwitch from '../../components/ThemedSwitch';
+import type { ScheduledTask } from '../../../common/types';
 
-interface Task {
+interface TaskForm {
   name: string;
-  cron: string;
+  cron_expression: string;
   prompt: string;
-  enabled?: boolean;
 }
+
+const EMPTY_FORM: TaskForm = { name: '', cron_expression: '', prompt: '' };
 
 export default function TasksScreen() {
   const connConfig = useConnection((s) => s.config);
   const { config: agentConfig, loadConfig, updateSection } = useConfig();
+  const {
+    tasks, error, saved,
+    loadTasks, createTask, updateTask, deleteTask, toggleTask,
+  } = useTasks();
+
   const [adding, setAdding] = useState(false);
-  const [editIdx, setEditIdx] = useState<number | null>(null);
-  const [form, setForm] = useState<Task>({ name: '', cron: '', prompt: '' });
-  const [saved, setSaved] = useState(false);
+  const [editId, setEditId] = useState<string | null>(null);
+  const [form, setForm] = useState<TaskForm>(EMPTY_FORM);
   const confirm = useConfirm();
 
   useEffect(() => {
     if (connConfig) {
       setBaseUrl(connConfig.host, connConfig.port);
       loadConfig();
+      loadTasks();
     }
   }, [connConfig]);
 
-  const tasks: Task[] = agentConfig?.scheduler?.tasks || [];
   const schedulerEnabled = agentConfig?.scheduler?.enabled ?? false;
 
-  const saveTasks = async (updated: Task[]) => {
-    const ok = await updateSection('scheduler', {
-      enabled: schedulerEnabled,
-      tasks: updated,
-    });
-    if (ok) {
-      setSaved(true);
-      setTimeout(() => setSaved(false), 2000);
-    }
-  };
-
   const toggleScheduler = async (val: boolean) => {
-    await updateSection('scheduler', { enabled: val, tasks });
+    // scheduler.enabled is the only remaining config-backed field;
+    // scheduler.tasks is deprecated and not sent here.
+    await updateSection('scheduler', { enabled: val });
   };
 
-  const handleRemove = async (idx: number) => {
-    const t = tasks[idx];
+  const handleRemove = async (id: string) => {
+    const t = tasks.find((x) => x.id === id);
+    if (!t) return;
     const confirmed = await confirm({
       title: 'Remove Task',
       message: `Remove task "${t.name}"?`,
       confirmLabel: 'Remove',
     });
     if (!confirmed) return;
-    const updated = tasks.filter((_, i) => i !== idx);
-    saveTasks(updated);
+    await deleteTask(id);
   };
 
-  const handleEdit = (idx: number) => {
-    setEditIdx(idx);
-    setForm({ ...tasks[idx] });
+  const handleEdit = (t: ScheduledTask) => {
+    setEditId(t.id);
+    setForm({ name: t.name, cron_expression: t.cron_expression, prompt: t.prompt });
     setAdding(true);
   };
 
-  const handleSaveForm = () => {
-    if (!form.name.trim() || !form.cron.trim() || !form.prompt.trim()) return;
-    let updated: Task[];
-    if (editIdx !== null) {
-      updated = tasks.map((t, i) => (i === editIdx ? form : t));
-    } else {
-      updated = [...tasks, form];
+  const handleSaveForm = async () => {
+    if (!form.name.trim() || !form.cron_expression.trim() || !form.prompt.trim()) return;
+    const ok = editId !== null
+      ? await updateTask(editId, form)
+      : await createTask(form);
+    if (ok) {
+      setAdding(false);
+      setEditId(null);
+      setForm(EMPTY_FORM);
     }
-    saveTasks(updated);
-    setAdding(false);
-    setEditIdx(null);
-    setForm({ name: '', cron: '', prompt: '' });
   };
 
   const handleCancel = () => {
     setAdding(false);
-    setEditIdx(null);
-    setForm({ name: '', cron: '', prompt: '' });
+    setEditId(null);
+    setForm(EMPTY_FORM);
   };
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
       <Text style={styles.title}>Scheduled Tasks</Text>
       <Text style={styles.hint}>
-        Cron tasks stored in config. Changes require restart.
+        Cron tasks stored in the database. Changes take effect within ~30 seconds.
       </Text>
 
       {/* Scheduler toggle */}
@@ -117,17 +120,21 @@ export default function TasksScreen() {
         )}
 
         {tasks.map((task, i) => (
-          <View key={i} style={[styles.taskRow, i > 0 && styles.taskRowBorder]}>
-            <TouchableOpacity style={styles.taskInfo} onPress={() => handleEdit(i)}>
+          <View key={task.id} style={[styles.taskRow, i > 0 && styles.taskRowBorder]}>
+            <TouchableOpacity style={styles.taskInfo} onPress={() => handleEdit(task)}>
               <Text style={styles.taskName}>{task.name}</Text>
-              <Text style={styles.taskCron}>{task.cron}</Text>
+              <Text style={styles.taskCron}>{task.cron_expression}</Text>
               <Text style={styles.taskPrompt} numberOfLines={2}>{task.prompt}</Text>
             </TouchableOpacity>
             <View style={styles.taskActions}>
-              <TouchableOpacity onPress={() => handleEdit(i)} style={styles.editBtn}>
+              <ThemedSwitch
+                value={task.enabled}
+                onValueChange={(v) => { void toggleTask(task.id, v); }}
+              />
+              <TouchableOpacity onPress={() => handleEdit(task)} style={styles.editBtn}>
                 <Feather name="edit-2" size={14} color={colors.textSecondary} />
               </TouchableOpacity>
-              <TouchableOpacity onPress={() => { void handleRemove(i); }} style={styles.removeBtn}>
+              <TouchableOpacity onPress={() => { void handleRemove(task.id); }} style={styles.removeBtn}>
                 <Feather name="x" size={14} color={colors.textMuted} />
               </TouchableOpacity>
             </View>
@@ -137,7 +144,7 @@ export default function TasksScreen() {
         {/* Add/edit form */}
         {adding ? (
           <View style={styles.addForm}>
-            <Text style={styles.formTitle}>{editIdx !== null ? 'Edit Task' : 'New Task'}</Text>
+            <Text style={styles.formTitle}>{editId !== null ? 'Edit Task' : 'New Task'}</Text>
             <TextInput
               style={styles.input}
               value={form.name}
@@ -147,8 +154,8 @@ export default function TasksScreen() {
             />
             <TextInput
               style={styles.input}
-              value={form.cron}
-              onChangeText={(v) => setForm({ ...form, cron: v })}
+              value={form.cron_expression}
+              onChangeText={(v) => setForm({ ...form, cron_expression: v })}
               placeholder="Cron (e.g. */30 * * * *)"
               placeholderTextColor={colors.textMuted}
             />
@@ -180,7 +187,7 @@ export default function TasksScreen() {
                 <Text style={styles.cancelBtnText}>Cancel</Text>
               </TouchableOpacity>
               <PrimaryButton style={styles.saveBtn} contentStyle={styles.saveBtnInner} onPress={handleSaveForm}>
-                <Text style={styles.saveBtnText}>{editIdx !== null ? 'Update' : 'Add Task'}</Text>
+                <Text style={styles.saveBtnText}>{editId !== null ? 'Update' : 'Add Task'}</Text>
               </PrimaryButton>
             </View>
           </View>
@@ -188,7 +195,7 @@ export default function TasksScreen() {
           <PrimaryButton
             style={styles.addBtn}
             contentStyle={styles.addBtnInner}
-            onPress={() => { setAdding(true); setEditIdx(null); setForm({ name: '', cron: '', prompt: '' }); }}
+            onPress={() => { setAdding(true); setEditId(null); setForm(EMPTY_FORM); }}
           >
             <View style={styles.addBtnContent}>
               <Feather name="plus" size={14} color={colors.textInverse} />
@@ -199,7 +206,10 @@ export default function TasksScreen() {
       </View>
 
       {saved && (
-        <Text style={styles.savedMsg}>Saved (restart required)</Text>
+        <Text style={styles.savedMsg}>Saved</Text>
+      )}
+      {error && (
+        <Text style={styles.errorMsg}>{error}</Text>
       )}
     </ScrollView>
   );
@@ -230,7 +240,7 @@ const styles = StyleSheet.create({
   taskName: { fontSize: 14, fontWeight: '600', color: colors.text },
   taskCron: { fontSize: 12, color: colors.primary, fontFamily: 'monospace', marginTop: 2 },
   taskPrompt: { fontSize: 12, color: colors.textSecondary, marginTop: 4, lineHeight: 18 },
-  taskActions: { flexDirection: 'row', gap: 4, marginLeft: 8 },
+  taskActions: { flexDirection: 'row', alignItems: 'center', gap: 4, marginLeft: 8 },
   editBtn: { padding: 6 },
   removeBtn: { padding: 6 },
   addBtn: { padding: 12, borderTopWidth: 1, borderTopColor: colors.borderLight },
@@ -250,4 +260,5 @@ const styles = StyleSheet.create({
   saveBtnInner: { minHeight: 34, paddingHorizontal: 14, paddingVertical: 7, borderRadius: 8 },
   saveBtnText: { color: colors.textInverse, fontSize: 13, fontWeight: '700' },
   savedMsg: { marginTop: 12, fontSize: 13, color: colors.success, textAlign: 'center' },
+  errorMsg: { marginTop: 12, fontSize: 13, color: '#e55', textAlign: 'center' },
 });
