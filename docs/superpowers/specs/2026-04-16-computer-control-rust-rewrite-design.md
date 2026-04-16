@@ -161,9 +161,27 @@ The existing "Build Node MCPs" step at `release.yml:101-109` has its `computer-c
 
 ### 6. Signing and notarization
 
-No changes to `scripts/sign-notarize-macos.sh`. The script already recursively signs every Mach-O binary inside the PyInstaller onefile; the Rust binary is just another file in the bundle as far as `codesign` is concerned, and gets signed by the same Developer ID certificate in the same pass. Notarization handles it the same way.
+`scripts/sign-notarize-macos.sh` signs only the outer onefile binary (no `--deep`, no recursion into PyInstaller's data section). For TCC to remember the Accessibility/Screen Recording grants on the Rust binary across updates, **the Rust binary must be signed independently** before PyInstaller embeds it.
 
-The Rust binary's bundle identifier (`com.openagent.computer-control`) is baked into `Cargo.toml` metadata and emitted as part of the `Info.plist` that `codesign` consults. macOS TCC keys grants by (bundle ID + signing team), so updates that preserve both preserve the grant. This is exactly the property that makes Anthropic's computer-use bypass the re-prompt churn we hit today.
+The CI `computer-control-binary` job (macOS runner only) signs the Rust binary in-place after `cargo build`, using:
+
+```bash
+codesign --force \
+  --sign "Developer ID Application: ..." \
+  --identifier com.openagent.computer-control \
+  --options runtime \
+  --timestamp \
+  --entitlements buildResources/entitlements.mac.plist \
+  <binary>
+```
+
+The `--identifier com.openagent.computer-control` flag is the key to TCC persistence: macOS TCC keys grants by the Designated Requirement, which includes this identifier + the signing team. As long as both stay the same across releases, a user who grants permission once never sees the prompt again — the property that makes Anthropic's computer-use feel "native."
+
+`--options runtime` is mandatory because the outer `openagent` binary is signed with hardened runtime, and Apple's notarization rejects nested non-hardened Mach-O code inside hardened binaries. We reuse the existing `buildResources/entitlements.mac.plist` (its `disable-library-validation` permission is harmless for a statically linked Rust binary and keeps the entitlement surface identical to the outer binary).
+
+After the inner binary is signed and embedded by PyInstaller, `sign-notarize-macos.sh` signs + notarizes the outer binary as it does today, with no changes to the script itself. The outer signature covers the now-signed inner binary bit-for-bit; any later modification would invalidate both.
+
+The inner binary does not need separate notarization: it's not launched directly by Gatekeeper (the user runs the outer binary), so its stapled notarization ticket is unnecessary. Signing alone is sufficient for TCC.
 
 ### 7. macOS permissions UX
 
