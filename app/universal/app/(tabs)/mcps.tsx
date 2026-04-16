@@ -1,6 +1,9 @@
 import { colors, font, radius } from '../../theme';
 /**
- * MCPs screen — view default MCPs (read-only) and manage custom MCPs.
+ * MCPs screen — master-detail with a left sidebar that switches between
+ * Builtin (read-only toggles) and Custom (user-configured servers). The
+ * sidebar + ResponsiveSidebar pattern matches Settings/Model so screens
+ * with category-style navigation feel identical.
  */
 
 import Feather from '@expo/vector-icons/Feather';
@@ -14,7 +17,11 @@ import { setBaseUrl } from '../../services/api';
 import { useConfirm } from '../../components/ConfirmDialog';
 import Button from '../../components/Button';
 import Card from '../../components/Card';
+import CategorySidebar from '../../components/CategorySidebar';
+import ResponsiveSidebar from '../../components/ResponsiveSidebar';
 import ThemedSwitch from '../../components/ThemedSwitch';
+
+type CategoryId = 'builtin' | 'custom';
 
 const DEFAULT_MCPS = [
   { name: 'vault', desc: 'Obsidian-compatible markdown notes (mcpvault)' },
@@ -31,6 +38,7 @@ const DEFAULT_MCPS = [
 export default function McpsScreen() {
   const config = useConnection((s) => s.config);
   const { config: agentConfig, loadConfig, updateSection } = useConfig();
+  const [activeCategory, setActiveCategory] = useState<CategoryId>('builtin');
   const [addingNew, setAddingNew] = useState(false);
   const [newName, setNewName] = useState('');
   const [newCommand, setNewCommand] = useState('');
@@ -81,12 +89,23 @@ export default function McpsScreen() {
     }
   };
 
-  return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-      {/* Default MCPs */}
-      <Text style={styles.sectionTitle}>Default MCPs</Text>
+  const sidebarContent = (
+    <CategorySidebar<CategoryId>
+      title="MCPs"
+      active={activeCategory}
+      onChange={setActiveCategory}
+      categories={[
+        { id: 'builtin', label: 'Builtin', icon: 'package', description: 'Bundled with OpenAgent' },
+        { id: 'custom', label: 'Custom', icon: 'plus-square', description: 'From openagent.yaml' },
+      ]}
+    />
+  );
+
+  const renderBuiltin = () => (
+    <>
+      <Text style={styles.sectionTitle}>Builtin MCPs</Text>
       <Text style={styles.sectionHint}>
-        Bundled with OpenAgent. Toggle to enable/disable. Restart required.
+        Bundled with OpenAgent. Toggle to enable or disable. Restart required.
       </Text>
       <Card padded={false}>
         {DEFAULT_MCPS.map((mcp, i) => (
@@ -102,11 +121,14 @@ export default function McpsScreen() {
           </View>
         ))}
       </Card>
+    </>
+  );
 
-      {/* Custom MCPs */}
-      <Text style={[styles.sectionTitle, { marginTop: 28 }]}>Custom MCPs</Text>
+  const renderCustom = () => (
+    <>
+      <Text style={styles.sectionTitle}>Custom MCPs</Text>
       <Text style={styles.sectionHint}>
-        User-configured MCP servers from openagent.yaml
+        User-configured MCP servers from openagent.yaml. Restart required.
       </Text>
       <Card padded={false}>
         {customMcps.length === 0 && !addingNew && (
@@ -131,7 +153,6 @@ export default function McpsScreen() {
           </View>
         ))}
 
-        {/* Add new form */}
         {addingNew ? (
           <View style={styles.addForm}>
             <TextInput
@@ -161,7 +182,7 @@ export default function McpsScreen() {
             </View>
           </View>
         ) : (
-          <View style={{ padding: 10, borderTopWidth: 1, borderTopColor: colors.borderLight }}>
+          <View style={styles.addBtnWrap}>
             <Button
               variant="primary"
               label="Add MCP Server"
@@ -172,7 +193,16 @@ export default function McpsScreen() {
           </View>
         )}
       </Card>
-    </ScrollView>
+    </>
+  );
+
+  return (
+    <ResponsiveSidebar sidebar={sidebarContent}>
+      <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+        {activeCategory === 'builtin' ? renderBuiltin() : renderCustom()}
+        <View style={{ height: 40 }} />
+      </ScrollView>
+    </ResponsiveSidebar>
   );
 }
 
@@ -183,11 +213,7 @@ const styles = StyleSheet.create({
     fontSize: 18, fontWeight: '500', color: colors.text, marginBottom: 4,
     fontFamily: font.display, letterSpacing: -0.3,
   },
-  sectionHint: { fontSize: 12, color: colors.textMuted, marginBottom: 12 },
-  card: {
-    backgroundColor: colors.surface, borderRadius: radius.lg,
-    borderWidth: 1, borderColor: colors.border, padding: 2,
-  },
+  sectionHint: { fontSize: 12, color: colors.textMuted, marginBottom: 12, lineHeight: 17 },
   row: {
     flexDirection: 'row', alignItems: 'center',
     paddingVertical: 10, paddingHorizontal: 12,
@@ -199,10 +225,7 @@ const styles = StyleSheet.create({
   mcpEnv: { fontSize: 10.5, color: colors.textMuted, marginTop: 2, fontFamily: font.mono },
   removeBtn: { padding: 6 },
   emptyText: { padding: 14, fontSize: 12, color: colors.textMuted, textAlign: 'center' },
-  addBtn: { padding: 10, borderTopWidth: 1, borderTopColor: colors.borderLight },
-  addBtnInner: { minHeight: 34, borderRadius: radius.sm },
-  addBtnContent: { flexDirection: 'row', alignItems: 'center' },
-  addBtnText: { fontSize: 12, color: colors.textInverse, fontWeight: '600', marginLeft: 6 },
+  addBtnWrap: { padding: 10, borderTopWidth: 1, borderTopColor: colors.borderLight },
   addForm: { padding: 12, borderTopWidth: 1, borderTopColor: colors.borderLight },
   input: {
     backgroundColor: colors.inputBg, borderRadius: radius.md,
@@ -211,9 +234,4 @@ const styles = StyleSheet.create({
     color: colors.text, fontSize: 12, marginBottom: 6, fontFamily: font.mono,
   },
   addFormActions: { flexDirection: 'row', justifyContent: 'flex-end', gap: 6, marginTop: 4 },
-  cancelBtn: { padding: 6 },
-  cancelBtnText: { color: colors.textMuted, fontSize: 12 },
-  saveBtn: {},
-  saveBtnInner: { minHeight: 30, paddingHorizontal: 12, paddingVertical: 6, borderRadius: radius.sm },
-  saveBtnText: { color: colors.textInverse, fontSize: 12, fontWeight: '600' },
 });

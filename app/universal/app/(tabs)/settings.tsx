@@ -18,6 +18,7 @@ import { setBaseUrl, triggerUpdate, triggerRestart } from '../../services/api';
 import { useConfirm } from '../../components/ConfirmDialog';
 import Button from '../../components/Button';
 import Card from '../../components/Card';
+import CategorySidebar from '../../components/CategorySidebar';
 import TabStrip from '../../components/TabStrip';
 import ResponsiveSidebar from '../../components/ResponsiveSidebar';
 import ThemedSwitch from '../../components/ThemedSwitch';
@@ -227,36 +228,12 @@ export default function SettingsScreen() {
   // ── Sidebar ──
 
   const sidebarContent = (
-    <View style={styles.sidebarInner}>
-      <Text style={styles.sidebarTitle}>Settings</Text>
-      <ScrollView style={styles.categoryList}>
-        {CATEGORIES.map((cat) => {
-          const isActive = cat.id === activeCategory;
-          return (
-            <TouchableOpacity
-              key={cat.id}
-              style={[styles.categoryItem, isActive && styles.categoryActive]}
-              onPress={() => setActiveCategory(cat.id)}
-            >
-              <Feather
-                name={cat.icon}
-                size={14}
-                color={isActive ? colors.primary : colors.textMuted}
-                style={styles.categoryIcon}
-              />
-              <View style={styles.categoryTextWrap}>
-                <Text style={[styles.categoryLabel, isActive && styles.categoryLabelActive]} numberOfLines={1}>
-                  {cat.label}
-                </Text>
-                <Text style={styles.categoryDesc} numberOfLines={1}>
-                  {cat.description}
-                </Text>
-              </View>
-            </TouchableOpacity>
-          );
-        })}
-      </ScrollView>
-    </View>
+    <CategorySidebar<CategoryId>
+      title="Settings"
+      active={activeCategory}
+      onChange={setActiveCategory}
+      categories={CATEGORIES}
+    />
   );
 
   // ── Main content per category ──
@@ -569,27 +546,6 @@ function Row({ label, value }: { label: string; value: string }) {
 }
 
 const styles = StyleSheet.create({
-  // Sidebar
-  sidebarInner: { flex: 1, padding: 10 },
-  sidebarTitle: {
-    fontSize: 10, fontWeight: '600', color: colors.textMuted,
-    textTransform: 'uppercase', letterSpacing: 1,
-    paddingHorizontal: 8, paddingVertical: 6, marginBottom: 4,
-  },
-  categoryList: { flex: 1 },
-  categoryItem: {
-    flexDirection: 'row', alignItems: 'center',
-    paddingVertical: 7, paddingHorizontal: 10,
-    borderRadius: radius.sm, marginBottom: 1,
-    position: 'relative',
-  },
-  categoryActive: { backgroundColor: colors.hover },
-  categoryIcon: { marginRight: 10 },
-  categoryTextWrap: { flex: 1 },
-  categoryLabel: { fontSize: 12.5, color: colors.textSecondary, fontWeight: '400' },
-  categoryLabelActive: { color: colors.text, fontWeight: '500' },
-  categoryDesc: { fontSize: 10.5, color: colors.textMuted, marginTop: 1 },
-
   // Main content
   container: { flex: 1, backgroundColor: colors.bg },
   content: { padding: 24, maxWidth: 560, width: '100%', alignSelf: 'center' },

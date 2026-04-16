@@ -18,6 +18,7 @@ import {
 } from '../../services/api';
 import Button from '../../components/Button';
 import Card from '../../components/Card';
+import CategorySidebar from '../../components/CategorySidebar';
 import TabStrip from '../../components/TabStrip';
 import ResponsiveSidebar from '../../components/ResponsiveSidebar';
 import type { UsageData, ModelCatalogEntry, DailyUsageEntry, ModelConfig } from '../../../common/types';
@@ -217,46 +218,22 @@ export default function ModelScreen() {
   // ── Sidebar ──
 
   const sidebarContent = (
-    <View style={styles.sidebarInner}>
-      <Text style={styles.sidebarTitle}>Models</Text>
-      <ScrollView style={styles.categoryList}>
-        {CATEGORIES.map((cat) => {
-          const isActive = cat.id === activeCategory;
-          return (
-            <TouchableOpacity
-              key={cat.id}
-              style={[styles.categoryItem, isActive && styles.categoryActive]}
-              onPress={() => setActiveCategory(cat.id)}
-            >
-              <Feather
-                name={cat.icon}
-                size={14}
-                color={isActive ? colors.primary : colors.textMuted}
-                style={styles.categoryIcon}
-              />
-              <View style={styles.categoryTextWrap}>
-                <Text style={[styles.categoryLabel, isActive && styles.categoryLabelActive]} numberOfLines={1}>
-                  {cat.label}
-                </Text>
-                <Text style={styles.categoryDesc} numberOfLines={1}>
-                  {cat.description}
-                </Text>
-              </View>
-            </TouchableOpacity>
-          );
-        })}
-      </ScrollView>
-
-      {/* Budget summary pinned to the bottom of the sidebar */}
-      {usage && usage.monthly_budget > 0 && (
-        <View style={styles.sidebarFooter}>
-          <Text style={styles.sidebarFooterLabel}>This Month</Text>
-          <Text style={styles.sidebarFooterValue}>
-            ${usage.monthly_spend.toFixed(2)} / ${usage.monthly_budget.toFixed(2)}
-          </Text>
-        </View>
-      )}
-    </View>
+    <CategorySidebar<CategoryId>
+      title="Models"
+      active={activeCategory}
+      onChange={setActiveCategory}
+      categories={CATEGORIES}
+      footer={
+        usage && usage.monthly_budget > 0 ? (
+          <View style={styles.sidebarFooter}>
+            <Text style={styles.sidebarFooterLabel}>This Month</Text>
+            <Text style={styles.sidebarFooterValue}>
+              ${usage.monthly_spend.toFixed(2)} / ${usage.monthly_budget.toFixed(2)}
+            </Text>
+          </View>
+        ) : null
+      }
+    />
   );
 
   // ── Category renders ──
@@ -556,25 +533,6 @@ export default function ModelScreen() {
 }
 
 const styles = StyleSheet.create({
-  // Sidebar
-  sidebarInner: { flex: 1, padding: 10 },
-  sidebarTitle: {
-    fontSize: 10, fontWeight: '600', color: colors.textMuted,
-    textTransform: 'uppercase', letterSpacing: 1,
-    paddingHorizontal: 8, paddingVertical: 6, marginBottom: 4,
-  },
-  categoryList: { flex: 1 },
-  categoryItem: {
-    flexDirection: 'row', alignItems: 'center',
-    paddingVertical: 7, paddingHorizontal: 10,
-    borderRadius: radius.sm, marginBottom: 1,
-  },
-  categoryActive: { backgroundColor: colors.hover },
-  categoryIcon: { marginRight: 10 },
-  categoryTextWrap: { flex: 1 },
-  categoryLabel: { fontSize: 12.5, color: colors.textSecondary, fontWeight: '400' },
-  categoryLabelActive: { color: colors.text, fontWeight: '500' },
-  categoryDesc: { fontSize: 10.5, color: colors.textMuted, marginTop: 1 },
   sidebarFooter: {
     borderTopWidth: 1, borderTopColor: colors.borderLight,
     paddingVertical: 10, paddingHorizontal: 10, marginTop: 8,
