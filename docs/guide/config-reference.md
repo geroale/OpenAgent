@@ -105,18 +105,22 @@ service:
 
 Environment variables are substituted using `${VAR_NAME}` syntax.
 
-For `claude-cli`, you can optionally tune the provider-managed session
-timeouts:
+For `claude-cli`, you can optionally tune how long idle subprocess clients
+are kept alive before the idle-cleanup task tears them down:
 
 ```yaml
 model:
   provider: claude-cli
   model_id: claude-sonnet-4-6
   permission_mode: bypass
-  idle_timeout_seconds: 900
-  hard_timeout_seconds: 1800
-  idle_ttl_seconds: 86400
+  idle_ttl_seconds: 86400   # default: 24h
 ```
+
+> Per-turn `idle_timeout_seconds` and `hard_timeout_seconds` knobs are still
+> accepted for backwards compatibility but are no longer honoured — the only
+> per-turn ceiling is `BRIDGE_RESPONSE_TIMEOUT` (65 min). Legitimately long
+> tool calls (gradle, Electron builds, Maestro suites) now run to completion
+> as long as they keep making progress.
 
 ## CLI Reference
 
