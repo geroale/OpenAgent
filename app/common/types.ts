@@ -134,6 +134,48 @@ export interface McpServerConfig {
   args?: string[];
 }
 
+// ── DB-backed registries (mcps + models tables) ──
+// Managed via /api/mcps and /api/models/db. These replace the yaml
+// ``mcp:`` and ``providers.X.models:`` arrays as the source of truth —
+// the yaml is imported into the DB on first boot and then ignored.
+
+export interface MCPEntry {
+  name: string;
+  kind: 'builtin' | 'custom' | 'default';
+  builtin_name?: string | null;
+  command?: string[] | null;
+  args: string[];
+  url?: string | null;
+  env: Record<string, string>;
+  headers: Record<string, string>;
+  oauth: boolean;
+  enabled: boolean;
+  source: string;
+  created_at: number;
+  updated_at: number;
+}
+
+export interface ModelEntry {
+  runtime_id: string;
+  provider: string;
+  model_id: string;
+  display_name?: string | null;
+  input_cost_per_million?: number | null;
+  output_cost_per_million?: number | null;
+  tier_hint?: string | null;
+  enabled: boolean;
+  metadata: Record<string, unknown>;
+  created_at: number;
+  updated_at: number;
+}
+
+export interface AvailableModel {
+  id: string;
+  display_name: string;
+  runtime_id?: string;
+  added?: boolean;
+}
+
 export interface AgentConfig {
   name?: string;
   system_prompt?: string;

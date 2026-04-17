@@ -2,7 +2,7 @@
  * REST API client for OpenAgent vault operations.
  */
 
-import type { VaultNote, GraphData, AgentConfig, ModelConfig, ProviderConfig, ModelsResponse, UsageData, ModelCatalogEntry, DailyUsageEntry, ScheduledTask, CreateScheduledTaskInput, UpdateScheduledTaskInput } from '../../common/types';
+import type { VaultNote, GraphData, AgentConfig, ModelConfig, ProviderConfig, ModelsResponse, UsageData, ModelCatalogEntry, DailyUsageEntry, ScheduledTask, CreateScheduledTaskInput, UpdateScheduledTaskInput, MCPEntry, ModelEntry, AvailableModel } from '../../common/types';
 
 let baseUrl = '';
 
@@ -289,4 +289,99 @@ export async function getModelCatalog(provider?: string): Promise<ModelCatalogEn
 export async function getAvailableProviders(): Promise<string[]> {
   const data = await get<{ providers: string[] }>('/api/models/providers');
   return data.providers;
+}
+
+// ── DB-backed MCP registry (maps to /api/mcps) ──
+//
+// These replace the yaml-based MCP editor. The DB is the source of truth;
+// writes trigger a pool hot-reload on the next message so the new server
+// is live without a process restart.
+
+export async function listMcps(): Promise<MCPEntry[]> {
+  const data = await get<{ mcps: MCPEntry[] }>('/api/mcps');
+  return data.mcps;
+}
+
+export async function getMcp(name: string): Promise<MCPEntry> {
+  const data = await get<{ mcp: MCPEntry }>(`/api/mcps/${encodeURIComponent(name)}`);
+  return data.mcp;
+}
+
+export async function createMcp(entry: Partial<MCPEntry> & { name: string }): Promise<MCPEntry> {
+  const data = await post<{ mcp: MCPEntry }>('/api/mcps', entry);
+  return data.mcp;
+}
+
+export async function updateMcp(name: string, patchBody: Partial<MCPEntry>): Promise<MCPEntry> {
+  const data = await put<{ mcp: MCPEntry }>(`/api/mcps/${encodeURIComponent(name)}`, patchBody);
+  return data.mcp;
+}
+
+export async function deleteMcp(name: string): Promise<void> {
+  await del(`/api/mcps/${encodeURIComponent(name)}`);
+}
+
+export async function enableMcp(name: string): Promise<MCPEntry> {
+  const data = await post<{ mcp: MCPEntry }>(`/api/mcps/${encodeURIComponent(name)}/enable`, {});
+  return data.mcp;
+}
+
+export async function disableMcp(name: string): Promise<MCPEntry> {
+  const data = await post<{ mcp: MCPEntry }>(`/api/mcps/${encodeURIComponent(name)}/disable`, {});
+  return data.mcp;
+}
+
+// ── DB-backed Model catalog (maps to /api/models/db) ──
+//
+// These replace the per-provider ``models:`` arrays in yaml. Available
+// models (what a provider actually exposes for a given API key) live at
+// /api/models/available?provider=X.
+
+export async function listDbModels(opts?: { provider?: string; enabledOnly?: boolean }): Promise<ModelEntry[]> {
+  const params = new URLSearchParams();
+  if (opts?.provider) params.set('provider', opts.provider);
+  if (opts?.enabledOnly) params.set('enabled_only', '1');
+  const qs = params.toString();
+  const data = await get<{ models: ModelEntry[] }>(`/api/models/db${qs ? `?${qs}` : ''}`);
+  return data.models;
+}
+
+export async function createDbModel(entry: {
+  provider: string;
+  model_id: string;
+  display_name?: string;
+  input_cost_per_million?: number;
+  output_cost_per_million?: number;
+  tier_hint?: string;
+  enabled?: boolean;
+  metadata?: Record<string, unknown>;
+}): Promise<ModelEntry> {
+  const data = await post<{ model: ModelEntry }>('/api/models/db', entry);
+  return data.model;
+}
+
+export async function updateDbModel(runtimeId: string, patchBody: Partial<ModelEntry>): Promise<ModelEntry> {
+  const data = await put<{ model: ModelEntry }>(`/api/models/db/${encodeURIComponent(runtimeId)}`, patchBody);
+  return data.model;
+}
+
+export async function deleteDbModel(runtimeId: string): Promise<void> {
+  await del(`/api/models/db/${encodeURIComponent(runtimeId)}`);
+}
+
+export async function enableDbModel(runtimeId: string): Promise<ModelEntry> {
+  const data = await post<{ model: ModelEntry }>(`/api/models/db/${encodeURIComponent(runtimeId)}/enable`, {});
+  return data.model;
+}
+
+export async function disableDbModel(runtimeId: string): Promise<ModelEntry> {
+  const data = await post<{ model: ModelEntry }>(`/api/models/db/${encodeURIComponent(runtimeId)}/disable`, {});
+  return data.model;
+}
+
+export async function listAvailableModels(provider: string): Promise<AvailableModel[]> {
+  const data = await get<{ provider: string; models: AvailableModel[] }>(
+    `/api/models/available?provider=${encodeURIComponent(provider)}`,
+  );
+  return data.models;
 }
