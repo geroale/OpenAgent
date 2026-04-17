@@ -1,6 +1,6 @@
 # Shell MCP: active-background execution with in-session wake-up
 
-Status: approved
+Status: implemented
 Date: 2026-04-17
 Owner: openagent core
 

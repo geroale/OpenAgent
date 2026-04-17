@@ -17,6 +17,28 @@ from openagent.core.logging import elog
 
 logger = logging.getLogger(__name__)
 
+
+def _format_shell_reminder(events) -> str:
+    """Format terminal shell events into a <system-reminder> block."""
+    lines = ["Background shell status update since your last message:"]
+    for ev in events:
+        if ev.kind == "completed":
+            detail = f"completed with exit_code={ev.exit_code}"
+        elif ev.kind == "timed_out":
+            detail = "timed_out"
+        else:
+            detail = f"killed ({ev.signal or 'unknown'})"
+        lines.append(
+            f"- shell_id={ev.shell_id}: {detail}. stdout_bytes={ev.bytes_stdout}, "
+            f"stderr_bytes={ev.bytes_stderr}. Call shell_output to read."
+        )
+    lines.append(
+        "The user has not sent a new message; continue the task from where "
+        "you left off, or summarise and stop if the work is complete."
+    )
+    body = "\n".join(lines)
+    return f"<system-reminder>\n{body}\n</system-reminder>"
+
 # Status callback type: async def on_status(status: str) -> None
 StatusCallback = Callable[[str], Awaitable[None]]
 
@@ -61,10 +83,12 @@ class Agent:
         system_prompt: str = "You are a helpful assistant.",
         mcp_pool: MCPPool | None = None,
         memory: MemoryDB | str | None = None,
+        config: dict | None = None,
     ):
         self.name = name
         self.model = model
         self.system_prompt = system_prompt
+        self.config = config or {}
 
         # MCPPool — owns the lifecycle of all MCP servers for the process.
         # Pass an empty pool if not provided so dormant detection / system
@@ -204,6 +228,11 @@ class Agent:
         if not callable(close_session):
             return
         await close_session(session_id)
+        try:
+            from openagent.mcp.servers.shell.handlers import get_hub
+            await get_hub().purge_session(session_id)
+        except Exception as e:  # noqa: BLE001
+            logger.debug("shell hub purge for %s failed: %s", session_id, e)
 
     def known_model_session_ids(
         self, *, model_override: BaseModel | None = None
@@ -248,12 +277,17 @@ class Agent:
         forget_session = getattr(model, "forget_session", None)
         if callable(forget_session):
             await forget_session(session_id)
-            return
-        # Fallback: release live resources even if provider lacks explicit
-        # forget support — best-effort; SDK-side resume state may linger.
-        close_session = getattr(model, "close_session", None)
-        if callable(close_session):
-            await close_session(session_id)
+        else:
+            # Fallback: release live resources even if provider lacks explicit
+            # forget support — best-effort; SDK-side resume state may linger.
+            close_session = getattr(model, "close_session", None)
+            if callable(close_session):
+                await close_session(session_id)
+        try:
+            from openagent.mcp.servers.shell.handlers import get_hub
+            await get_hub().purge_session(session_id)
+        except Exception as e:  # noqa: BLE001
+            logger.debug("shell hub purge for %s failed: %s", session_id, e)
 
     async def initialize(self) -> None:
         """Connect MCP servers and initialize memory DB."""
@@ -286,7 +320,14 @@ class Agent:
                 if not callable(cleanup_idle):
                     continue
                 try:
-                    await cleanup_idle()
+                    released_ids = await cleanup_idle()
+                    if released_ids:
+                        try:
+                            from openagent.mcp.servers.shell.handlers import get_hub
+                            for sid in released_ids:
+                                await get_hub().purge_session(sid)
+                        except Exception as e:  # noqa: BLE001
+                            logger.debug("shell hub purge on idle cleanup failed: %s", e)
                 except Exception as e:
                     logger.debug("Idle cleanup error: %s", e)
 
@@ -310,6 +351,11 @@ class Agent:
                 except Exception as e:  # noqa: BLE001
                     logger.warning("Model shutdown error: %s", e)
         await self._mcp.close_all()
+        try:
+            from openagent.mcp.servers.shell.handlers import get_hub
+            await get_hub().shutdown()
+        except Exception as e:  # noqa: BLE001
+            logger.debug("shell hub shutdown failed: %s", e)
         if self._db:
             await self._db.close()
         self._initialized = False
@@ -403,13 +449,27 @@ class Agent:
         session_id: str | None = None,
         model_override: BaseModel | None = None,
     ) -> str:
-        """Inner run logic, wrapped by run() for crash protection.
+        """Run a single agent turn, continuing the session automatically when
+        background shells complete during or shortly after it.
 
-        Providers handle the tool-use loop internally (Agno via its Agent,
-        Claude SDK via its native MCP support), so this method is now a
-        single ``model.generate`` call. The provider returns the final
-        post-tool-loop content; we just package the prompt and unpack the
-        response.
+        Providers handle the internal tool-loop (Agno via its Agent, Claude
+        SDK via its native MCP support), so each call to ``model.generate``
+        returns post-tool-loop content. This method adds a wrapper loop
+        above ``generate`` that:
+
+        1. After each turn, drains the shell hub for terminal events
+           (shell_exec+run_in_background=True) for ``session_id``.
+        2. If any terminal event landed, formats it as a ``<system-reminder>``
+           and re-enters ``generate`` on the same session — same subprocess
+           (Claude), same Agno history — so the model sees the completion
+           mid-conversation.
+        3. If no events landed but shells are still running, awaits
+           ``hub.wait`` up to ``shell.wake_wait_window_seconds`` before
+           giving up and returning to the caller.
+        4. Caps at ``shell.autoloop_cap`` iterations to prevent runaway
+           chains, logged via ``agent.run.autoloop_cap_hit``.
+
+        Returns the final ``ModelResponse.content`` after the loop settles.
         """
         await _status("Loading context...")
 
@@ -439,30 +499,81 @@ class Agent:
                 ),
             )
 
-        messages: list[dict[str, Any]] = [{"role": "user", "content": message}]
+        from openagent.mcp.servers.shell.handlers import get_hub
+        from openagent.mcp.servers.shell.adapters import set_session_context, reset_session_context
+        from openagent.core.config import shell_settings
 
-        await _status("Thinking...")
+        hub = get_hub()
+        settings = shell_settings(getattr(self, "config", None) or {})
+        wake_window = settings.wake_wait_window_seconds
+        cap = settings.autoloop_cap
 
         active_model = self._acquire_model_slot(model_override or self.model)
+
+        current_input = message
+        last_response = None
+        iter_count = 0
+
+        pending = hub.drain(session_id)
+        if pending:
+            pre = _format_shell_reminder(pending)
+            current_input = f"{pre}\n\n{current_input}"
+
         try:
-            response = await active_model.generate(
-                messages,
-                system=system,
-                on_status=_status,
-                session_id=session_id,
-            )
+            while True:
+                iter_count += 1
+                if iter_count > cap:
+                    elog(
+                        "agent.run.autoloop_cap_hit",
+                        session_id=session_id,
+                        cap=cap,
+                    )
+                    break
+
+                messages: list[dict[str, Any]] = [{"role": "user", "content": current_input}]
+                await _status("Thinking...")
+
+                token = set_session_context(session_id)
+                try:
+                    response = await active_model.generate(
+                        messages,
+                        system=system,
+                        on_status=_status,
+                        session_id=session_id,
+                    )
+                finally:
+                    reset_session_context(token)
+
+                last_response = response
+
+                events = hub.drain(session_id)
+                if not events:
+                    if not hub.has_running(session_id):
+                        break
+                    if wake_window > 0:
+                        events = await hub.wait(session_id, timeout=wake_window)
+                    if not events:
+                        break
+
+                elog(
+                    "agent.run.autoloop_iter",
+                    session_id=session_id,
+                    iter=iter_count,
+                    events=len(events),
+                )
+                current_input = _format_shell_reminder(events)
         finally:
             self._release_model_slot(active_model)
 
-        self._store_response_meta(session_id, response)
+        self._store_response_meta(session_id, last_response)
         elog(
             "agent.run.done",
             agent=self.name,
             session_id=session_id,
             model_class=type(active_model).__name__,
-            response_len=len(response.content or ""),
+            response_len=len((last_response.content if last_response else "") or ""),
         )
-        return response.content if response else "I wasn't able to complete the request."
+        return (last_response.content if last_response else "") or "(Done — no final message was returned.)"
 
     def _combined_system_prompt(self) -> str:
         """Concatenate the framework prompt with the user's project-specific one."""
