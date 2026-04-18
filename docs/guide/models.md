@@ -1,83 +1,82 @@
 # Models
 
-OpenAgent is model agnostic by design. It supports multiple LLM providers, and every model gets the same MCP tools, memory behavior, channels, and client surfaces.
+OpenAgent is model agnostic by design. It supports Agno providers (OpenAI, Anthropic API, Google, Groq, xAI, DeepSeek, Mistral, Cerebras, Z.ai, OpenRouter) and Claude CLI (Claude Pro/Max subscription) — every model gets the same MCP tools, memory behaviour, channels, and client surfaces.
 
-## Smart Router
+## One router to rule them all
 
-The recommended default. Classifies each incoming message into a tier (`simple` / `medium` / `hard`) using a cheap classifier model, then routes to the tier-appropriate model. Also falls back to a cheaper model automatically when your monthly budget is nearly exhausted.
+Since v0.9.0 the active runtime is **always** the SmartRouter. It:
 
-```yaml
-model:
-  provider: smart
-  monthly_budget: 50              # USD; router downgrades when near/over budget
-  classifier_model: gpt-4o-mini   # cheap model that picks the tier
-  routing:
-    simple: gpt-4o-mini
-    medium: gpt-4.1-mini
-    hard: gpt-4.1
-    fallback: gpt-4o-mini         # used when budget is exhausted
-```
-
-Every request gets logged to a `usage_log` table with input / output tokens and computed cost. The REST endpoint `GET /api/usage` returns the running totals; `GET /api/usage/pricing` returns the price-per-million table used for cost computation.
-
-Model prices come from a bundled default pricing file (gpt-4.1 / gpt-4o-mini / gemini-2.5-flash / claude-sonnet-4-6 / etc.). User overrides in `providers.<name>.models[].input_cost_per_million` take precedence.
-
-## Claude CLI (Claude Agent SDK)
-
-Uses your Claude Pro/Max membership — flat rate, not pay-per-token.
+1. Reads the enabled models from the `models` SQLite table.
+2. Classifies each incoming message into a tier (`simple` / `medium` / `hard`) using a cheap classifier model.
+3. Routes to the tier-appropriate model — which may be an Agno provider OR a `claude-cli` model, whichever is enabled in the DB.
+4. Enforces **session-side binding**: once a session has been served by one side (agno or claude-cli), every subsequent turn stays there. Conversation state lives in that side's store (Agno's SqliteDb vs Claude's own session store), and mixing the two would split the history. Bindings persist across restarts via the `sdk_sessions` and `session_bindings` tables.
+5. Degrades to the fallback tier when the monthly budget is near-exhausted.
 
 ```yaml
 model:
-  provider: claude-cli
-  model_id: claude-sonnet-4-6
-  permission_mode: bypass     # auto-approve all tool calls
+  permission_mode: bypass        # auto-approve tool calls (agent deployments)
+  monthly_budget: 50             # USD; 0 disables
+  classifier_model: openai:gpt-4o-mini
+  # Optional explicit routing — leave empty to auto-derive from the
+  # enabled models in the DB (sorted by output cost per million).
+  # routing:
+  #   simple: openai:gpt-4o-mini
+  #   medium: openai:gpt-4.1-mini
+  #   hard: claude-cli/claude-sonnet-4-6
+  #   fallback: openai:gpt-4o-mini
 ```
 
-Requires `claude` CLI installed and authenticated (`claude login`).
+Legacy `model.provider` values (`claude-cli`, `anthropic`, `zhipu`, …) still work — they get translated into a SmartRouter whose tiers all point at the single configured model.
 
-## Claude API (Anthropic SDK)
+## API keys live in yaml, models live in the DB
 
-```yaml
-model:
-  provider: claude-api
-  model_id: claude-sonnet-4-6
-  api_key: ${ANTHROPIC_API_KEY}
-```
-
-## Z.ai GLM / Any OpenAI-compatible
-
-```yaml
-model:
-  provider: zhipu
-  model_id: glm-5
-  api_key: ${ZAI_API_KEY}
-  base_url: https://api.z.ai/api/paas/v4
-```
-
-Works with Ollama, vLLM, LM Studio — just change `base_url`:
-
-```yaml
-model:
-  provider: zhipu
-  model_id: llama3
-  base_url: http://localhost:11434/v1
-  api_key: ollama
-```
-
-## OpenAI
-
-Standard OpenAI-hosted models run through the same Agno provider as Z.ai; the only difference is you put the key under `providers.openai` and reference the model as `openai:<id>` (or use the Smart Router above).
+`providers.<name>.api_key` and `base_url` stay in `openagent.yaml` — they are the source of truth for credentials:
 
 ```yaml
 providers:
   openai:
     api_key: ${OPENAI_API_KEY}
-    models:
-      - gpt-4o-mini
-      - gpt-4.1-mini
-      - gpt-4.1
+  anthropic:
+    api_key: ${ANTHROPIC_API_KEY}
+  google:
+    api_key: ${GOOGLE_API_KEY}
 ```
 
-## Hot Reload
+The per-provider **model list** (which ids are available to route to) lives in the `models` table and is managed via:
 
-Change `model:` or `providers:` in `openagent.yaml` and the gateway rebuilds the active model on the next incoming message — no restart. Other sections (`mcp`, `scheduler`, `channels`, `system_prompt`) still need a restart to take effect.
+- **From the agent** — the `model-manager` built-in MCP exposes `list_models`, `list_available_models` (dynamic discovery via the provider's `/v1/models` or OpenRouter fallback), `add_model`, `update_model`, `enable_model`, `disable_model`, `remove_model`, `test_model`.
+- **REST** — `GET/POST/PUT/DELETE /api/models/db[/...]`, plus `/enable` and `/disable`. `GET /api/models/available?provider=openai` returns the live catalog for a given provider.
+- **UI** — the Models screen in the desktop app or the `/models` slash command in the CLI.
+
+Upgrading an install from <v0.9.0 copies the yaml `providers.X.models:` lists into the DB once and then ignores them on subsequent boots.
+
+## Claude CLI (Claude Pro/Max subscription)
+
+Install Claude CLI 2.1.96+, run `claude login`, then register at least one claude-cli model:
+
+```text
+> use model-manager to add claude-sonnet-4-6 under the claude-cli provider
+```
+
+Or:
+
+```bash
+curl -X POST http://localhost:8765/api/models/db -H 'Content-Type: application/json' -d '{
+  "provider": "claude-cli",
+  "model_id": "claude-sonnet-4-6"
+}'
+```
+
+The runtime_id becomes `claude-cli/claude-sonnet-4-6`. When SmartRouter picks it, the session is served by `ClaudeCLIRegistry` (multi-model; pins a session to a specific claude-cli model on first dispatch).
+
+## No models enabled = reject
+
+With zero enabled models in the DB, the gateway replies with a clear error (`"No models are enabled. Add one via /models…"`) instead of silently falling through. Use this as a forcing function: no config, no service.
+
+## Cost tracking
+
+Every dispatch gets logged to `usage_log` with input / output tokens and computed cost. Prices come from the user's per-model metadata first, then OpenRouter's live catalog, then the bundled `default_pricing.json`. `GET /api/usage` returns the running totals; `GET /api/usage/pricing` returns the price-per-million table used for cost computation.
+
+## Hot reload
+
+Edit a model via the manager MCP, the REST endpoints, or the UI — the gateway sees the bumped `updated_at` on the next message, rebuilds the routing table, and the new model is live. Sessions already bound stay bound; only fresh sessions can land on the new entry.

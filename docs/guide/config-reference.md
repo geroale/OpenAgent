@@ -2,54 +2,49 @@
 
 ## Full YAML
 
+Since v0.9.0 the **MCP list** and the **per-provider model catalog** live
+in SQLite, not in this file. They are managed via the `mcp-manager` /
+`model-manager` built-in MCPs, the REST endpoints (`/api/mcps`,
+`/api/models/db`), or the desktop/CLI UI. yaml stays the source of
+truth for identity, API keys, channels, memory paths, dream mode, and
+auto-update.
+
 ```yaml
 name: my-agent
 
 system_prompt: |
   You are a helpful assistant.
 
+# The active runtime is always the SmartRouter. Each session is routed
+# to either the Agno stack or the Claude CLI registry based on a
+# classifier + persistent session-side binding.
 model:
-  provider: claude-cli           # claude-cli | claude-api | zhipu | openai | smart
-  model_id: claude-sonnet-4-6
   permission_mode: bypass        # bypass | auto | default
-  # api_key: ${API_KEY}          # for claude-api, openai, zhipu
-  # base_url: https://...        # for zhipu/OpenAI-compatible
+  monthly_budget: 50             # USD; 0 disables budget guardrails
+  classifier_model: openai:gpt-4o-mini
+  # Optional explicit routing. Leave empty to auto-derive from the
+  # enabled models in the DB (sorted by output cost per million).
+  # routing:
+  #   simple: openai:gpt-4o-mini
+  #   medium: openai:gpt-4.1-mini
+  #   hard: claude-cli/claude-sonnet-4-6
+  #   fallback: openai:gpt-4o-mini
 
-# OR: Smart Router — classifies each message and picks the right tier model.
-# Falls back to the cheap model automatically when monthly budget is exhausted.
-# model:
-#   provider: smart
-#   monthly_budget: 50
-#   classifier_model: gpt-4o-mini
-#   routing:
-#     simple: gpt-4o-mini
-#     medium: gpt-4.1-mini
-#     hard: gpt-4.1
-#     fallback: gpt-4o-mini
-
+# API keys + base URLs for LLM providers. The per-provider model list
+# is NOT here — it lives in the ``models`` DB table.
 providers:
   openai:
     api_key: ${OPENAI_API_KEY}
-    models:
-      - gpt-4o-mini
-      - gpt-4.1-mini
-      - gpt-4.1
   anthropic:
     api_key: ${ANTHROPIC_API_KEY}
-    models:
-      - claude-sonnet-4-6
+  google:
+    api_key: ${GOOGLE_API_KEY}
 
-mcp_defaults: true
-# mcp_disable: ["computer-control"]
-
-mcp:
-  - name: github
-    command: ["github-mcp-server", "stdio"]
-    env:
-      GITHUB_PERSONAL_ACCESS_TOKEN: ${GITHUB_TOKEN}
-  - name: remote
-    url: "https://mcp.example.com/sse"
-    oauth: true
+# MCPs used to live in a yaml ``mcp:`` list. Since v0.9.0 they live in
+# the ``mcps`` SQLite table. On upgrade, any pre-existing yaml entries
+# are imported once into the DB and then ignored; use the MCPs screen,
+# the ``/mcps`` slash command, or ``mcp-manager`` from inside the agent
+# to add/remove/toggle servers at runtime.
 
 memory:
   db_path: "~/.openagent/openagent.db"
@@ -105,16 +100,20 @@ service:
 
 Environment variables are substituted using `${VAR_NAME}` syntax.
 
-For `claude-cli`, you can optionally tune how long idle subprocess clients
-are kept alive before the idle-cleanup task tears them down:
+For `claude-cli` sessions, you can optionally tune how long idle claude
+subprocess clients are kept alive before the idle-cleanup task tears
+them down:
 
 ```yaml
 model:
-  provider: claude-cli
-  model_id: claude-sonnet-4-6
-  permission_mode: bypass
   idle_ttl_seconds: 86400   # default: 24h
 ```
+
+Legacy `model.provider` values (`claude-cli`, `anthropic`, `zhipu`, …)
+are still accepted and translated into a SmartRouter whose tiers all
+point at the single specified model. For most deployments, the cleaner
+setup is to leave `model.provider` unset and register the models you
+want in the DB via the model-manager MCP or the Models UI.
 
 > Per-turn `idle_timeout_seconds` and `hard_timeout_seconds` knobs are still
 > accepted for backwards compatibility but are no longer honoured — the only

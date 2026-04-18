@@ -95,7 +95,9 @@ export interface ProviderConfig {
   api_key?: string;
   api_key_display?: string;
   base_url?: string;
-  models?: string[];
+  // NOTE: ``models`` used to live here as part of the yaml source of
+  // truth. Since v0.9.0 the per-provider model list lives in the
+  // ``models`` SQLite table — fetch it via ``listDbModels({provider})``.
 }
 
 export interface ModelCatalogEntry {
@@ -176,14 +178,14 @@ export interface AvailableModel {
   added?: boolean;
 }
 
+// Source-of-truth yaml fields. Deliberately no ``mcp`` / ``mcp_defaults``
+// / ``mcp_disable`` here — those moved to the ``mcps`` DB table managed
+// via /api/mcps (and surfaced in the UI via MCPEntry below).
 export interface AgentConfig {
   name?: string;
   system_prompt?: string;
   model?: ModelConfig;
   providers?: Record<string, ProviderConfig>;
-  mcp_defaults?: boolean;
-  mcp_disable?: string[];
-  mcp?: McpServerConfig[];
   dream_mode?: { enabled: boolean; time: string };
   auto_update?: { enabled: boolean; mode: string; check_interval: string };
   channels?: Record<string, any>;

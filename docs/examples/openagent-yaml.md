@@ -1,33 +1,34 @@
 # Example `openagent.yaml`
 
-This is the full production-style example configuration currently shipped with the repository.
+This is the sanitized production-style example shipped with the repository. Since v0.9.0 the **MCP server list** and the **per-provider model catalog** live in SQLite, not in this file — manage them via the `mcp-manager` / `model-manager` built-in MCPs, the `/api/mcps` + `/api/models/db` REST endpoints, or the desktop/CLI UI.
 
 ::: tip Multi-Agent Mode
 When using agent directories (`openagent serve ./my-agent`), this file lives at `./my-agent/openagent.yaml` alongside the database, memories, and logs. The `memory.db_path` and `memory.vault_path` fields are optional — they default to the agent directory. Each agent directory is fully self-contained.
 :::
 
 ```yaml
-# OpenAgent example configuration — full production-style setup.
+# OpenAgent example configuration.
 #
-# This is a sanitized version of the config powering the mixout-agent
-# deployment on an OVH VPS. It ships ~11 user MCPs (GitHub, Firebase,
-# Google Play, App Store Connect, ClickUp, Sentry, SSH, Google Workspace,
-# Google Analytics, etc.), scheduled tasks, dream mode, and auto-update —
-# all driven by a single YAML file.
+# Since v0.9.0 the **MCP server list** and the **LLM model catalog**
+# live in SQLite, not in this file. They are managed at runtime via:
 #
-# Data paths: when using agent directories (openagent serve ./my-agent),
-# all data lives inside the agent directory automatically. Otherwise,
-# OpenAgent stores files in platform-standard directories:
-#   - macOS:   ~/Library/Application Support/OpenAgent/
-#   - Linux:   ~/.config/openagent/ (config), ~/.local/share/openagent/ (data)
-#   - Windows: %APPDATA%\OpenAgent\
+#   - the ``mcp-manager`` and ``model-manager`` built-in MCPs (the agent
+#     itself can call their tools to add/remove/toggle entries);
+#   - the REST API — ``/api/mcps/*`` and ``/api/models/db/*``;
+#   - the desktop app's Settings screens and the CLI's ``/mcps`` /
+#     ``/models`` slash commands (both hit the same REST endpoints).
 #
-# You can override all paths via this YAML. If running under systemd,
-# pass -c /path/to/openagent.yaml explicitly.
+# **Upgrading from <0.9.0:** the first boot of an upgraded install
+# copies any yaml ``mcp:``, ``mcp_disable:``, and
+# ``providers.X.models:`` entries into the DB and sets a
+# ``config_state`` flag so subsequent yaml edits to those fields are
+# ignored. The yaml continues to be the source of truth for
+# ``providers.X.api_key`` (and other credentials), ``channels``,
+# ``memory`` paths, ``dream_mode``, ``auto_update``, ``system_prompt``,
+# and ``name``.
 #
 # Any value in the form ${VAR_NAME} is substituted from environment
-# variables at load time. Tokens can also be inlined for single-machine
-# setups — pick whichever suits your threat model.
+# variables at load time.
 
 name: my-agent
 
@@ -49,79 +50,51 @@ system_prompt: |
   Git author: My Agent <myagent@example.com> (no Co-Authored-By line).
 
 model:
-  provider: claude-cli            # use Claude Pro/Max membership instead of API
-  model_id: claude-sonnet-4-6
+  # The active runtime is always the SmartRouter. It reads enabled
+  # models from the ``models`` DB table and dispatches each session to
+  # either an Agno provider or the Claude CLI (via the internal
+  # registry) based on a small classifier + session-side binding.
+  # Sessions cannot cross: once a session has been served by one side
+  # (agno or claude-cli), subsequent turns stay there.
   permission_mode: bypass         # auto-approve tool calls (agent deployments)
+  monthly_budget: 0               # 0 disables budget guardrails
+  classifier_model: openai:gpt-4o-mini
+  # Optional explicit routing. Leave empty to auto-derive from the
+  # enabled models in the DB (sorted by output cost per million).
+  # routing:
+  #   simple: openai:gpt-4o-mini
+  #   medium: openai:gpt-4.1-mini
+  #   hard: claude-cli/claude-sonnet-4-6
+  #   fallback: openai:gpt-4o-mini
+
+# Linux only: extra raw systemd [Service] directives for the generated user
+# unit. Omit this block entirely if you want no explicit memory/task caps.
+# service:
+#   systemd:
+#     MemoryHigh: 2500M
+#     MemoryMax: 3500M
+#     MemorySwapMax: 1G
 
 memory:
   db_path: ~/.openagent/openagent.db
   vault_path: ~/.openagent/memories
 
-mcp_defaults: true                # load the 8 bundled defaults (vault, filesystem,
-                                  # editor, web-search, shell, computer-control,
-                                  # chrome-devtools, messaging, scheduler)
+# API keys for LLM providers (source of truth — NOT in the DB).
+# The list of MODELS per provider lives in the DB; add/remove via
+# the ``model-manager`` MCP, ``POST /api/models/db``, or the app/CLI.
+providers:
+  openai:
+    api_key: ${OPENAI_API_KEY}
+  anthropic:
+    api_key: ${ANTHROPIC_API_KEY}
+  google:
+    api_key: ${GOOGLE_API_KEY}
 
-mcp:
-  # ── Source control & code ─────────────────────────────────────────────
-  - name: github
-    command: [github-mcp-server, stdio]
-    env:
-      GITHUB_PERSONAL_ACCESS_TOKEN: ${GITHUB_TOKEN}
-
-  - name: sentry
-    command: [npx, -y, "@sentry/mcp-server@latest"]
-    env:
-      SENTRY_ACCESS_TOKEN: ${SENTRY_TOKEN}
-      SENTRY_HOST: sentry.io
-
-  # ── Mobile / app stores ───────────────────────────────────────────────
-  - name: google-play
-    command:
-      - npx
-      - -y
-      - "@blocktopus/mcp-google-play"
-      - --api-key
-      - /path/to/google-play-service-account.json
-
-  - name: appstore-connect
-    command: [npx, -y, "appstore-connect-mcp-server"]
-    env:
-      APP_STORE_CONNECT_KEY_ID: YOUR_KEY_ID
-      APP_STORE_CONNECT_ISSUER_ID: YOUR_ISSUER_ID
-      APP_STORE_CONNECT_P8_PATH: /path/to/AuthKey.p8
-
-  # ── Firebase (official) — auth, crashlytics, remoteconfig, firestore ──
-  - name: firebase
-    command:
-      - firebase
-      - mcp
-      - --dir
-      - ~/.openagent/firebase-config
-      - --only
-      - auth,crashlytics,remoteconfig,firestore
-
-  # ── Google Workspace (Gmail, Drive) — separate HTTP server ──
-  - name: google-workspace
-    url: http://localhost:8000/mcp
-
-  # ── Google Analytics 4 ────────────────────────────────────────────────
-  - name: google-analytics
-    command: [analytics-mcp]
-    env:
-      GOOGLE_APPLICATION_CREDENTIALS: /path/to/analytics-sa.json
-      GOOGLE_PROJECT_ID: YOUR_GCP_PROJECT_ID
-
-  # ── Task tracking ─────────────────────────────────────────────────────
-  - name: clickup
-    command: [npx, -y, "@cavort-it-systems/clickup-mcp"]
-    env:
-      CLICKUP_API_KEY: ${CLICKUP_API_KEY}
-      CLICKUP_API_TOKEN: ${CLICKUP_API_KEY}
-      CLICKUP_TEAM_ID: YOUR_CLICKUP_TEAM_ID
-
-  # ── SSH MCP for driving remote servers from the agent ─────────────────
-  - name: ssh-remote
-    command: [npx, -y, "@idletoaster/ssh-mcp-server"]
+# MCP servers used to live here as a ``mcp:`` list. They now live in
+# the ``mcps`` SQLite table. On upgrade, any pre-existing yaml entries
+# are imported ONCE into the DB; after that the yaml block is ignored
+# and edits must go through the ``mcp-manager`` MCP, ``/api/mcps``, or
+# the desktop/CLI MCPs screen.
 
 channels:
   # Telegram bot — the most common deployment. Voice transcription via
