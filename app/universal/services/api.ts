@@ -195,67 +195,61 @@ export async function triggerRestart(): Promise<{ ok: boolean }> {
   return res.json();
 }
 
-// ── Provider API ──
+// ── Providers API (DB-backed since v0.11.0) ──
+//
+// Provider keys now live in the SQLite ``providers`` table. Legacy
+// yaml-writing helpers (addModel/updateModel/deleteModel) are kept as
+// aliases that target the new REST endpoints so existing callers don't
+// break mid-upgrade.
 
 export async function getProviders(): Promise<Record<string, ProviderConfig>> {
   const data = await get<{ providers: Record<string, ProviderConfig> }>('/api/providers');
   return data.providers;
 }
 
-export async function testProvider(provider: string): Promise<{ ok: boolean; error?: string }> {
-  const res = await fetch(`${baseUrl}/api/providers/test`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ provider }),
-  });
-  return res.json();
-}
-
-// ── Models API (all via config PATCH — works on any agent version) ──
-
-export async function getModels(): Promise<ModelsResponse> {
-  const cfg = await getConfig();
-  return { models: cfg.providers || {}, active: cfg.model || {} as ModelConfig };
-}
-
-export async function addModel(
-  name: string, config: { api_key?: string; base_url?: string },
-): Promise<{ ok: boolean }> {
-  const cfg = await getConfig();
-  const providers = cfg.providers || {};
-  providers[name] = config;
-  return updateConfigSection('providers', providers) as any;
-}
-
-export async function updateModel(
-  name: string, config: Record<string, any>,
-): Promise<{ ok: boolean }> {
-  const cfg = await getConfig();
-  const providers = { ...(cfg.providers || {}) };
-  providers[name] = { ...providers[name], ...config };
-  return updateConfigSection('providers', providers) as any;
-}
-
-export async function deleteModel(name: string): Promise<void> {
-  const cfg = await getConfig();
-  const providers = { ...(cfg.providers || {}) };
-  delete providers[name];
-  await updateConfigSection('providers', providers);
-}
-
-export async function testModel(
-  name: string, _modelId?: string,
+export async function testProvider(
+  provider: string, model_id?: string,
 ): Promise<{ ok: boolean; error?: string }> {
-  // Test by trying the providers/test endpoint, fall back to a no-op success
   try {
-    return await post(`/api/providers/test`, { provider: name, model_id: _modelId });
-  } catch {
-    return { ok: false, error: 'Test not available — restart the agent with the latest version' };
+    return await post(`/api/providers/${encodeURIComponent(provider)}/test`, { model_id });
+  } catch (e: any) {
+    return { ok: false, error: e?.message || String(e) };
   }
 }
 
+export async function addProvider(
+  name: string, config: { api_key?: string; base_url?: string },
+): Promise<{ ok: boolean }> {
+  return post('/api/providers', { name, ...config });
+}
+
+export async function updateProvider(
+  name: string, config: { api_key?: string; base_url?: string },
+): Promise<{ ok: boolean }> {
+  return put(`/api/providers/${encodeURIComponent(name)}`, config);
+}
+
+export async function deleteProvider(name: string): Promise<void> {
+  await del(`/api/providers/${encodeURIComponent(name)}`);
+}
+
+// Back-compat aliases matching the pre-v0.11 names that the model.tsx
+// screen imports. Keeps the refactor diff small.
+export const addModel = addProvider;
+export const updateModel = updateProvider;
+export const deleteModel = deleteProvider;
+export const testModel = testProvider;
+
+export async function getModels(): Promise<ModelsResponse> {
+  const [providers, activeRes] = await Promise.all([
+    getProviders(),
+    get<{ active: ModelConfig }>('/api/models/active').catch(() => ({ active: {} as ModelConfig })),
+  ]);
+  return { models: providers, active: activeRes.active };
+}
+
 export async function setActiveModel(model: ModelConfig): Promise<{ ok: boolean }> {
-  return updateConfigSection('model', model) as any;
+  return put('/api/models/active', model);
 }
 
 // ── Usage API ──
