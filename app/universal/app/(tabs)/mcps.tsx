@@ -221,7 +221,7 @@ const styles = StyleSheet.create({
     fontFamily: font.display, letterSpacing: -0.3,
   },
   sectionHint: { fontSize: 12, color: colors.textMuted, marginBottom: 12, lineHeight: 17 },
-  error: { color: colors.danger, marginBottom: 12, fontSize: 12 },
+  error: { color: colors.error, marginBottom: 12, fontSize: 12 },
   row: {
     flexDirection: 'row', alignItems: 'center',
     paddingVertical: 10, paddingHorizontal: 12,
