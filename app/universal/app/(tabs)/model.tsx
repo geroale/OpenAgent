@@ -419,7 +419,14 @@ export default function ModelScreen() {
           </Card>
         )}
 
-        {(['agno', 'claude-cli'] as const).map((fw) => (
+        {/* Only render a framework group if it actually has rows — a
+            header + "No claude-cli models configured" for a user who
+            has zero claude-cli intent is just visual noise. If BOTH
+            groups are empty, fall through to the global empty-state
+            which handles the no-providers + no-models CTA above. */}
+        {(['agno', 'claude-cli'] as const)
+          .filter((fw) => byFramework[fw].length > 0)
+          .map((fw) => (
           <View key={fw} style={{ marginBottom: 14 }}>
             <Text style={styles.frameworkHeader}>
               {fw}
@@ -427,11 +434,8 @@ export default function ModelScreen() {
                 <Text style={styles.frameworkSub}>  · Pro/Max subscription, no per-token billing</Text>
               )}
             </Text>
-            {byFramework[fw].length === 0 ? (
-              <Text style={styles.emptyText}>No {fw} models configured</Text>
-            ) : (
-              <Card padded={false}>
-                {byFramework[fw].map((m, i) => (
+            <Card padded={false}>
+              {byFramework[fw].map((m, i) => (
                   <View key={m.runtime_id} style={[styles.row, i > 0 && styles.rowBorder]}>
                     <View style={styles.rowInfo}>
                       <Text style={styles.rowTitle}>
@@ -456,9 +460,8 @@ export default function ModelScreen() {
                       <Feather name="x" size={14} color={colors.textMuted} />
                     </TouchableOpacity>
                   </View>
-                ))}
-              </Card>
-            )}
+              ))}
+            </Card>
           </View>
         ))}
 

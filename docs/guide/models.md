@@ -75,7 +75,7 @@ With zero enabled models in the DB, the gateway replies with a clear error (`"No
 
 ## Cost tracking
 
-Every dispatch gets logged to `usage_log` with input / output tokens and computed cost. Prices come from the user's per-model metadata first, then OpenRouter's live catalog, then the bundled `default_pricing.json`. `GET /api/usage` returns the running totals; `GET /api/usage/pricing` returns the price-per-million table used for cost computation.
+Every dispatch gets logged to `usage_log` with input / output tokens and computed cost. Prices come from the user's per-model metadata first, then OpenRouter's live catalog. There is no bundled offline pricing table — if OpenRouter is unreachable at the moment cost is computed, the entry is logged as `missing` with zero cost. `claude-cli` always resolves to zero (Pro/Max subscription). `GET /api/usage` returns the running totals; `GET /api/usage/pricing` returns the price-per-million table used for cost computation.
 
 ## Hot reload
 
