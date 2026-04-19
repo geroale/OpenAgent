@@ -95,17 +95,20 @@ export default function ModelScreen() {
 
   const reload = useCallback(async () => {
     if (!connConfig) return;
-    try {
-      const provs = await getProviders();
-      setProviders(provs || []);
-    } catch {}
-    try {
-      setModels(await listDbModels());
-    } catch (e: any) {
-      setError(e?.message || String(e));
-    }
-    try { setUsage(await getUsage()); } catch {}
-    try { setDailyUsage(await getDailyUsage(costDays)); } catch {}
+    // Four independent fetches — fire in parallel so the screen doesn't
+    // serialise network latency. ``allSettled`` keeps a slow /api/usage
+    // from blocking the providers/models panels on first render.
+    const [provs, dbModels, usageRes, dailyRes] = await Promise.allSettled([
+      getProviders(),
+      listDbModels(),
+      getUsage(),
+      getDailyUsage(costDays),
+    ]);
+    if (provs.status === 'fulfilled') setProviders(provs.value || []);
+    if (dbModels.status === 'fulfilled') setModels(dbModels.value);
+    else setError(dbModels.reason?.message || String(dbModels.reason));
+    if (usageRes.status === 'fulfilled') setUsage(usageRes.value);
+    if (dailyRes.status === 'fulfilled') setDailyUsage(dailyRes.value);
   }, [connConfig, costDays]);
 
   useEffect(() => {
@@ -410,7 +413,7 @@ export default function ModelScreen() {
               <Button
                 variant="primary" size="md" label="Add"
                 onPress={submitAddProvider}
-                disabled={!newProvName.trim() || Boolean(duplicateAgno) || Boolean(duplicateCli)}
+                disabled={!newProvName.trim() || !!duplicateAgno || !!duplicateCli}
               />
             </View>
           </View>
