@@ -32,7 +32,7 @@ import {
   getProviders, addProvider, deleteProvider, testProvider,
   listDbModels, deleteDbModel, enableDbModel, disableDbModel,
   createDbModel, listAvailableModels,
-  setActiveModel, getUsage, getDailyUsage,
+  getUsage, getDailyUsage,
 } from '../../services/api';
 import Button from '../../components/Button';
 import Card from '../../components/Card';
@@ -41,14 +41,14 @@ import TabStrip from '../../components/TabStrip';
 import ResponsiveSidebar from '../../components/ResponsiveSidebar';
 import { useConfirm } from '../../components/ConfirmDialog';
 import type {
-  UsageData, DailyUsageEntry, ModelConfig, ModelEntry, AvailableModel,
+  UsageData, DailyUsageEntry, ModelEntry, AvailableModel,
   ProviderConfig, ModelFramework,
 } from '../../../common/types';
 
 type CategoryId = 'overview' | 'providers' | 'models' | 'costs';
 
 const CATEGORIES = [
-  { id: 'overview' as const, label: 'Overview', icon: 'dollar-sign' as const, description: 'Budget and usage' },
+  { id: 'overview' as const, label: 'Overview', icon: 'dollar-sign' as const, description: 'Usage summary' },
   { id: 'providers' as const, label: 'Providers', icon: 'key' as const, description: 'API keys' },
   { id: 'models' as const, label: 'Models', icon: 'cpu' as const, description: 'Routable models' },
   { id: 'costs' as const, label: 'Costs', icon: 'bar-chart-2' as const, description: 'Daily breakdown' },
@@ -84,12 +84,10 @@ export default function ModelScreen() {
   const [available, setAvailable] = useState<AvailableModel[]>([]);
   const [loadingAvailable, setLoadingAvailable] = useState(false);
 
-  // Usage / budget
+  // Usage
   const [usage, setUsage] = useState<UsageData | null>(null);
   const [dailyUsage, setDailyUsage] = useState<DailyUsageEntry[]>([]);
   const [costDays, setCostDays] = useState(7);
-  const [budget, setBudget] = useState('20');
-  const [saved, setSaved] = useState(false);
 
   const [error, setError] = useState<string | null>(null);
 
@@ -220,15 +218,6 @@ export default function ModelScreen() {
     }
   };
 
-  // ── Settings ──
-
-  const saveBudget = async () => {
-    const cfg: ModelConfig = { provider: 'smart', monthly_budget: parseFloat(budget) || 20 };
-    await setActiveModel(cfg);
-    setSaved(true);
-    setTimeout(() => setSaved(false), 2500);
-  };
-
   // ── Renders ──
 
   const sidebar = (
@@ -238,11 +227,11 @@ export default function ModelScreen() {
       onChange={setActiveCategory}
       categories={CATEGORIES}
       footer={
-        usage && usage.monthly_budget > 0 ? (
+        usage ? (
           <View style={styles.sidebarFooter}>
             <Text style={styles.sidebarFooterLabel}>This Month</Text>
             <Text style={styles.sidebarFooterValue}>
-              ${usage.monthly_spend.toFixed(2)} / ${usage.monthly_budget.toFixed(2)}
+              ${usage.monthly_spend.toFixed(2)}
             </Text>
           </View>
         ) : null
@@ -254,32 +243,14 @@ export default function ModelScreen() {
     <>
       <Text style={styles.title}>Overview</Text>
       <Text style={styles.hint}>
-        The smart router picks a model per incoming message based on a cheap classifier and your monthly budget. Models
-        live in the database (add them under Models). API keys live in the yaml (add them under Providers).
+        The smart router picks a model per incoming message based on a cheap classifier. Models live in the database
+        (add them under Models). Provider credentials live there too (add them under Providers).
       </Text>
-
-      <Card>
-        <Text style={styles.label}>Monthly Budget (USD)</Text>
-        <TextInput
-          style={styles.input}
-          value={budget}
-          onChangeText={setBudget}
-          keyboardType="numeric"
-          placeholderTextColor={colors.textMuted}
-        />
-        <View style={{ height: 10 }} />
-        <Button variant="primary" size="md" label={saved ? 'Saved ✓' : 'Save'} onPress={saveBudget} />
-      </Card>
-
-      <View style={{ height: 10 }} />
 
       <Card>
         <Text style={styles.label}>This month</Text>
         <Text style={styles.overviewValue}>
           {usage ? `$${usage.monthly_spend.toFixed(3)}` : '—'}
-          {usage && usage.monthly_budget > 0 ? (
-            <Text style={styles.overviewMuted}> / ${usage.monthly_budget.toFixed(2)}</Text>
-          ) : null}
         </Text>
       </Card>
     </>

@@ -28,7 +28,7 @@ Since v0.9.0 the MCP list lives in the `mcps` SQLite table, not in yaml. Three e
 - **REST**: `GET/POST/PUT/DELETE /api/mcps[/...]`, plus `POST /api/mcps/{name}/enable` and `/disable`.
 - **UI**: the MCPs screen in the desktop app or the `/mcps` slash command in the CLI — both hit the same REST endpoints.
 
-On first boot of an upgraded install, any pre-existing yaml `mcp:`, `mcp_disable:`, and `mcp_defaults:` fields are imported into the DB once (guarded by a `config_state` flag) and then ignored. Further yaml edits to those fields log a warning and are not applied.
+The `mcps` SQLite table is the sole source of truth. Every boot, `ensure_builtin_mcps` backfills any `BUILTIN_MCP_SPECS` entry whose row is missing (forward compat + safety net against manual DB tampering); existing rows — including disabled ones — are left untouched.
 
 ## Built-in vs custom
 

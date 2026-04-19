@@ -80,17 +80,6 @@ export interface SavedAccount extends ConnectionConfig {
 
 // ── Config ──
 
-export interface ModelConfig {
-  provider: string;        // "claude-cli" | "claude-api" | "zhipu" | "litellm" | "smart"
-  model_id?: string;
-  permission_mode?: string; // "bypass" | "auto" | "default"
-  api_key?: string;
-  base_url?: string;
-  monthly_budget?: number;
-  routing?: { simple?: string; medium?: string; hard?: string; fallback?: string };
-  classifier_model?: string;
-}
-
 // OpenAgent v0.12 vocabulary:
 //   - provider row = (name, framework) pair with a surrogate integer id
 //   - the same vendor can appear twice (e.g. anthropic+agno and anthropic+claude-cli)
@@ -128,7 +117,6 @@ export interface ModelsResponse {
   // v0.12: flat list — dict-by-name would collide when the same vendor
   // is registered under both frameworks.
   models: ProviderConfig[];
-  active: ModelConfig;
 }
 
 export interface UsageData {
@@ -203,18 +191,16 @@ export interface AvailableModel {
   added?: boolean;
 }
 
-// Source-of-truth yaml fields. Deliberately no ``mcp`` / ``mcp_defaults``
-// / ``mcp_disable`` here — those moved to the ``mcps`` DB table managed
-// via /api/mcps (and surfaced in the UI via MCPEntry below).
+// Source-of-truth yaml fields. Providers, models, MCPs, and scheduled
+// tasks are DB-backed and live in SQLite — reach them via their
+// dedicated REST endpoints (``/api/providers``, ``/api/models``,
+// ``/api/mcps``, ``/api/scheduled-tasks``), not through this shape.
 export interface AgentConfig {
   name?: string;
   system_prompt?: string;
-  model?: ModelConfig;
-  providers?: ProviderConfig[];
   dream_mode?: { enabled: boolean; time: string };
   auto_update?: { enabled: boolean; mode: string; check_interval: string };
   channels?: Record<string, any>;
-  scheduler?: { enabled: boolean; tasks?: any[] };
   services?: Record<string, any>;
   memory?: { db_path?: string; vault_path?: string };
 }

@@ -4,10 +4,8 @@ import { colors, font, radius } from '../../theme';
  *
  * Tasks live in the backend SQLite database, served over
  * /api/scheduled-tasks. Changes take effect within ~30 seconds (the
- * scheduler's next tick) — no restart required.
- *
- * The only config-backed piece is the global `scheduler.enabled` kill
- * switch, which still flips via PATCH /api/config/scheduler.
+ * scheduler's next tick) — no restart required. The scheduler runs
+ * whenever the agent has a DB attached; there is no yaml kill switch.
  */
 
 import Feather from '@expo/vector-icons/Feather';
@@ -16,7 +14,6 @@ import {
   View, Text, TextInput, TouchableOpacity, ScrollView, StyleSheet, Platform,
 } from 'react-native';
 import { useConnection } from '../../stores/connection';
-import { useConfig } from '../../stores/config';
 import { useTasks } from '../../stores/tasks';
 import { setBaseUrl } from '../../services/api';
 import { useConfirm } from '../../components/ConfirmDialog';
@@ -35,7 +32,6 @@ const EMPTY_FORM: TaskForm = { name: '', cron_expression: '', prompt: '' };
 
 export default function TasksScreen() {
   const connConfig = useConnection((s) => s.config);
-  const { config: agentConfig, loadConfig, updateSection } = useConfig();
   const {
     tasks, error, saved,
     loadTasks, createTask, updateTask, deleteTask, toggleTask,
@@ -49,18 +45,9 @@ export default function TasksScreen() {
   useEffect(() => {
     if (connConfig) {
       setBaseUrl(connConfig.host, connConfig.port);
-      loadConfig();
       loadTasks();
     }
   }, [connConfig]);
-
-  const schedulerEnabled = agentConfig?.scheduler?.enabled ?? false;
-
-  const toggleScheduler = async (val: boolean) => {
-    // scheduler.enabled is the only remaining config-backed field;
-    // scheduler.tasks is deprecated and not sent here.
-    await updateSection('scheduler', { enabled: val });
-  };
 
   const handleRemove = async (id: string) => {
     const t = tasks.find((x) => x.id === id);
@@ -104,15 +91,6 @@ export default function TasksScreen() {
       <Text style={styles.hint}>
         Cron tasks stored in the database. Changes take effect within ~30 seconds.
       </Text>
-
-      {/* Scheduler toggle */}
-      <Card padded={false} style={styles.toggleCard}>
-        <Text style={styles.toggleLabel}>Scheduler Enabled</Text>
-        <ThemedSwitch
-          value={schedulerEnabled}
-          onValueChange={toggleScheduler}
-        />
-      </Card>
 
       {/* Task list */}
       <Card padded={false}>
@@ -224,13 +202,6 @@ const styles = StyleSheet.create({
     fontFamily: font.display, letterSpacing: -0.3,
   },
   hint: { fontSize: 12, color: colors.textMuted, marginBottom: 14 },
-  toggleCard: {
-    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
-    backgroundColor: colors.surface, borderRadius: radius.lg,
-    borderWidth: 1, borderColor: colors.border,
-    paddingHorizontal: 14, paddingVertical: 12, marginBottom: 12,
-  },
-  toggleLabel: { fontSize: 13, color: colors.text, fontWeight: '500' },
   card: {
     backgroundColor: colors.surface, borderRadius: radius.lg,
     borderWidth: 1, borderColor: colors.border, padding: 2,

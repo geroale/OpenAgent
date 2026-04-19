@@ -1,18 +1,19 @@
 # OpenAgent example configuration.
 #
-# LLM providers (API keys, base URLs) and the per-provider model
-# catalog live in SQLite, not in this file. Manage them via:
+# LLM providers (API keys, base URLs), the per-provider model catalog,
+# MCP servers, and scheduled tasks all live in SQLite, not in this
+# file. Manage them via:
 #
-#   - the ``mcp-manager`` and ``model-manager`` built-in MCPs (the agent
-#     itself can call their tools to add/remove/toggle entries);
-#   - the REST API — ``/api/providers/*``, ``/api/mcps/*``, and
-#     ``/api/models/db/*``;
+#   - the ``mcp-manager``, ``model-manager``, and ``scheduler`` built-in
+#     MCPs (the agent itself can call their tools to add/remove/toggle
+#     entries);
+#   - the REST API — ``/api/providers/*``, ``/api/mcps/*``,
+#     ``/api/models/*``, and ``/api/scheduled-tasks/*``;
 #   - the desktop app's Settings screens and the CLI's ``/mcps`` /
-#     ``/models`` / ``openagent provider`` commands.
+#     ``/models`` / ``/tasks`` / ``openagent provider`` commands.
 #
-# This yaml is the source of truth for ``channels``, ``memory`` paths,
-# ``dream_mode``, ``auto_update``, ``system_prompt``, ``name``, and the
-# ``model:`` routing block.
+# This yaml is the source of truth for ``name``, ``system_prompt``,
+# ``channels``, ``memory`` paths, ``dream_mode``, and ``auto_update``.
 #
 # Any value in the form ${VAR_NAME} is substituted from environment
 # variables at load time.
@@ -36,24 +37,6 @@ system_prompt: |
 
   Git author: My Agent <myagent@example.com> (no Co-Authored-By line).
 
-model:
-  # The active runtime is always the SmartRouter. It reads enabled
-  # models from the ``models`` DB table and dispatches each session to
-  # either an Agno provider or the Claude CLI (via the internal
-  # registry) based on a small classifier + session-side binding.
-  # Sessions cannot cross: once a session has been served by one side
-  # (agno or claude-cli), subsequent turns stay there.
-  permission_mode: bypass         # auto-approve tool calls (agent deployments)
-  monthly_budget: 0               # 0 disables budget guardrails
-  classifier_model: openai:gpt-4o-mini
-  # Optional explicit routing. Leave empty to auto-derive from the
-  # enabled models in the DB (sorted by output cost per million).
-  # routing:
-  #   simple: openai:gpt-4o-mini
-  #   medium: openai:gpt-4.1-mini
-  #   hard: claude-cli/claude-sonnet-4-6
-  #   fallback: openai:gpt-4o-mini
-
 # Linux only: extra raw systemd [Service] directives for the generated user
 # unit. Omit this block entirely if you want no explicit memory/task caps.
 # service:
@@ -66,17 +49,11 @@ memory:
   db_path: ~/.openagent/openagent.db
   vault_path: ~/.openagent/memories
 
-# LLM provider credentials (API keys, base URLs) and the per-provider
-# model catalog live in the ``providers`` and ``models`` SQLite tables.
-# Add/remove/toggle them via the ``model-manager`` MCP, the
-# ``/api/providers`` and ``/api/models/db`` REST endpoints, the
-# ``openagent provider`` CLI, or the desktop app's Settings screen.
-#
-# MCP servers used to live here as a ``mcp:`` list. They now live in
-# the ``mcps`` SQLite table. On upgrade, any pre-existing yaml entries
-# are imported ONCE into the DB; after that the yaml block is ignored
-# and edits must go through the ``mcp-manager`` MCP, ``/api/mcps``, or
-# the desktop/CLI MCPs screen.
+# LLM providers, models, MCP servers, and scheduled tasks live in
+# SQLite. Manage them via the ``model-manager`` / ``mcp-manager`` /
+# ``scheduler`` built-in MCPs, the matching REST endpoints, the
+# ``openagent provider`` CLI, or the Settings screens in the desktop
+# app.
 
 channels:
   # Telegram bot — the most common deployment. Voice transcription via
@@ -114,25 +91,6 @@ channels:
   #   allowed_users:
   #     - "391234567890"
 
-
-scheduler:
-  enabled: true
-  tasks:
-    - name: health-check
-      cron: "*/30 * * * *"
-      prompt: |
-        Run health checks on all services. If any is down, send a
-        Telegram alert via the telegram_send_message tool.
-
-    - name: git-sync
-      cron: "*/15 * * * *"
-      prompt: |
-        Run git pull in all project repos. Report only errors.
-
-    - name: daily-costs-report
-      cron: "0 9 * * *"
-      prompt: |
-        Update the costs spreadsheet and send a summary via Telegram.
 
 # Nightly maintenance: consolidates duplicate memory files, cross-links
 # notes with wikilinks, runs a system health check, writes a dream log.

@@ -1,6 +1,6 @@
 # Example `openagent.yaml`
 
-This is the sanitized production-style example shipped with the repository. LLM providers (API keys, base URLs) and the per-provider model catalog live in SQLite, not in this file — manage them via the `mcp-manager` / `model-manager` built-in MCPs, the `/api/providers`, `/api/mcps`, and `/api/models/db` REST endpoints, or the desktop/CLI UI.
+This is the sanitized production-style example shipped with the repository. LLM providers (API keys, base URLs), the per-provider model catalog, MCP servers, and scheduled tasks all live in SQLite, not in this file — manage them via the `mcp-manager` / `model-manager` / `scheduler` built-in MCPs, the `/api/providers`, `/api/mcps`, `/api/models`, and `/api/scheduled-tasks` REST endpoints, or the desktop/CLI UI.
 
 ::: tip Multi-Agent Mode
 When using agent directories (`openagent serve ./my-agent`), this file lives at `./my-agent/openagent.yaml` alongside the database, memories, and logs. The `memory.db_path` and `memory.vault_path` fields are optional — they default to the agent directory. Each agent directory is fully self-contained.
@@ -9,32 +9,26 @@ When using agent directories (`openagent serve ./my-agent`), this file lives at 
 ```yaml
 # OpenAgent example configuration.
 #
-# LLM providers (API keys, base URLs) and the per-provider model
-# catalog live in SQLite, not in this file. Manage them via:
+# LLM providers (API keys, base URLs), the per-provider model catalog,
+# MCP servers, and scheduled tasks all live in SQLite, not in this
+# file. Manage them via:
 #
-#   - the ``mcp-manager`` and ``model-manager`` built-in MCPs (the agent
-#     itself can call their tools to add/remove/toggle entries);
-#   - the REST API — ``/api/providers/*``, ``/api/mcps/*``, and
-#     ``/api/models/db/*``;
+#   - the ``mcp-manager``, ``model-manager``, and ``scheduler`` built-in
+#     MCPs (the agent itself can call their tools to add/remove/toggle
+#     entries);
+#   - the REST API — ``/api/providers/*``, ``/api/mcps/*``,
+#     ``/api/models/*``, and ``/api/scheduled-tasks/*``;
 #   - the desktop app's Settings screens and the CLI's ``/mcps`` /
-#     ``/models`` / ``openagent provider`` commands.
+#     ``/models`` / ``/tasks`` / ``openagent provider`` commands.
 #
-# This yaml is the source of truth for ``channels``, ``memory`` paths,
-# ``dream_mode``, ``auto_update``, ``system_prompt``, ``name``, and the
-# ``model:`` routing block.
+# This yaml is the source of truth for ``name``, ``system_prompt``,
+# ``channels``, ``memory`` paths, ``dream_mode``, and ``auto_update``.
 #
 # Any value in the form ${VAR_NAME} is substituted from environment
 # variables at load time.
 
 name: my-agent
 
-# Keep this short. Identity + pointer to the memory vault is enough —
-# OpenAgent prepends a framework-level system prompt that already covers
-# how to use the vault (mcpvault tools, wikilinks, frontmatter), MCP-vs-
-# shell preference, acting autonomously, and concise output style. Put
-# project-specific details (package names, app IDs, host names, procedures)
-# INSIDE the memory vault as .md notes — the agent will find them with
-# `search_notes`.
 system_prompt: |
   You are My Agent, the persistent AI assistant for My Project.
 
@@ -45,112 +39,23 @@ system_prompt: |
 
   Git author: My Agent <myagent@example.com> (no Co-Authored-By line).
 
-model:
-  # The active runtime is always the SmartRouter. It reads enabled
-  # models from the ``models`` DB table and dispatches each session to
-  # either an Agno provider or the Claude CLI (via the internal
-  # registry) based on a small classifier + session-side binding.
-  # Sessions cannot cross: once a session has been served by one side
-  # (agno or claude-cli), subsequent turns stay there.
-  permission_mode: bypass         # auto-approve tool calls (agent deployments)
-  monthly_budget: 0               # 0 disables budget guardrails
-  classifier_model: openai:gpt-4o-mini
-  # Optional explicit routing. Leave empty to auto-derive from the
-  # enabled models in the DB (sorted by output cost per million).
-  # routing:
-  #   simple: openai:gpt-4o-mini
-  #   medium: openai:gpt-4.1-mini
-  #   hard: claude-cli/claude-sonnet-4-6
-  #   fallback: openai:gpt-4o-mini
-
-# Linux only: extra raw systemd [Service] directives for the generated user
-# unit. Omit this block entirely if you want no explicit memory/task caps.
-# service:
-#   systemd:
-#     MemoryHigh: 2500M
-#     MemoryMax: 3500M
-#     MemorySwapMax: 1G
-
 memory:
   db_path: ~/.openagent/openagent.db
   vault_path: ~/.openagent/memories
 
-# LLM provider credentials (API keys, base URLs) and the per-provider
-# model catalog live in the ``providers`` and ``models`` SQLite tables.
-# Add/remove/toggle them via the ``model-manager`` MCP, the
-# ``/api/providers`` and ``/api/models/db`` REST endpoints, the
-# ``openagent provider`` CLI, or the desktop app's Settings screen.
-#
-# MCP servers used to live here as a ``mcp:`` list. They now live in
-# the ``mcps`` SQLite table. On upgrade, any pre-existing yaml entries
-# are imported ONCE into the DB; after that the yaml block is ignored
-# and edits must go through the ``mcp-manager`` MCP, ``/api/mcps``, or
-# the desktop/CLI MCPs screen.
-
 channels:
-  # Telegram bot — the most common deployment. Voice transcription via
-  # faster-whisper (local, free) or OpenAI Whisper API (cloud fallback).
   telegram:
     token: ${TELEGRAM_BOT_TOKEN}
     allowed_users:
       - "YOUR_TELEGRAM_USER_ID"
-      - "ANOTHER_TELEGRAM_USER_ID"
-
-  # Discord bot — same commands as Telegram (/new /stop /status /queue
-  # /help /usage), plus native slash commands and an inline stop button.
-  # allowed_users is MANDATORY — the channel refuses to start without it.
-  # discord:
-  #   token: ${DISCORD_BOT_TOKEN}
-  #   allowed_users:
-  #     - "YOUR_DISCORD_USER_ID"
-  #   allowed_guilds: []             # [] = any server
-  #   listen_channels: []            # [] = mention required
-  #   dm_only: false                 # true = DMs only
-
-  # WebSocket — for the OpenAgent desktop/web app. JSON over WS with
-  # shared-token auth. Connect via SSH tunnel or expose directly.
   websocket:
     port: 8765
     token: ${OPENAGENT_WS_TOKEN}
-    # allowed_origins:
-    #   - "http://localhost:3000"
-    #   - "file://"
 
-  # WhatsApp via Green API (no message editing, no inline buttons).
-  # whatsapp:
-  #   green_api_id: ${GREEN_API_ID}
-  #   green_api_token: ${GREEN_API_TOKEN}
-  #   allowed_users:
-  #     - "391234567890"
-
-
-scheduler:
-  enabled: true
-  tasks:
-    - name: health-check
-      cron: "*/30 * * * *"
-      prompt: |
-        Run health checks on all services. If any is down, send a
-        Telegram alert via the telegram_send_message tool.
-
-    - name: git-sync
-      cron: "*/15 * * * *"
-      prompt: |
-        Run git pull in all project repos. Report only errors.
-
-    - name: daily-costs-report
-      cron: "0 9 * * *"
-      prompt: |
-        Update the costs spreadsheet and send a summary via Telegram.
-
-# Nightly maintenance: consolidates duplicate memory files, cross-links
-# notes with wikilinks, runs a system health check, writes a dream log.
 dream_mode:
   enabled: true
   time: "3:00"
 
-# Auto-update: pip upgrade from PyPI on schedule. mode=auto exits with
-# code 75 so the OS service restarts with the new version.
 auto_update:
   enabled: true
   mode: auto

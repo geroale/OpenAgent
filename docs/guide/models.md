@@ -7,26 +7,9 @@ OpenAgent is model agnostic by design. It supports Agno providers (OpenAI, Anthr
 The active runtime is **always** the SmartRouter. It:
 
 1. Reads the enabled models from the `models` SQLite table.
-2. Classifies each incoming message into a tier (`simple` / `medium` / `hard`) using a cheap classifier model.
-3. Routes to the tier-appropriate model — which may be an Agno provider OR a `claude-cli` model, whichever is enabled in the DB.
+2. Classifies each incoming message with a cheap classifier model and picks the single best `runtime_id` from the enabled catalog.
+3. Dispatches to the chosen model — which may be an Agno provider OR a `claude-cli` model, whichever is enabled in the DB.
 4. Enforces **session-side binding**: once a session has been served by one side (agno or claude-cli), every subsequent turn stays there. Conversation state lives in that side's store (Agno's SqliteDb vs Claude's own session store), and mixing the two would split the history. Bindings persist across restarts via the `sdk_sessions` and `session_bindings` tables.
-5. Degrades to the fallback tier when the monthly budget is near-exhausted.
-
-```yaml
-model:
-  permission_mode: bypass        # auto-approve tool calls (agent deployments)
-  monthly_budget: 50             # USD; 0 disables
-  classifier_model: openai:gpt-4o-mini
-  # Optional explicit routing — leave empty to auto-derive from the
-  # enabled models in the DB (sorted by output cost per million).
-  # routing:
-  #   simple: openai:gpt-4o-mini
-  #   medium: openai:gpt-4.1-mini
-  #   hard: claude-cli/claude-sonnet-4-6
-  #   fallback: openai:gpt-4o-mini
-```
-
-Legacy `model.provider` values (`claude-cli`, `anthropic`, `zhipu`, …) still work — they get translated into a SmartRouter whose tiers all point at the single configured model.
 
 ## Providers and models live in the DB
 
@@ -50,7 +33,7 @@ curl -X POST http://localhost:8765/api/providers -H 'Content-Type: application/j
 The per-provider **model list** (which ids are available to route to) lives in the `models` table and is managed via:
 
 - **From the agent** — the `model-manager` built-in MCP exposes `list_models`, `list_available_models` (dynamic discovery via the provider's `/v1/models` or OpenRouter fallback), `add_model`, `update_model`, `enable_model`, `disable_model`, `remove_model`, `test_model`.
-- **REST** — `GET/POST/PUT/DELETE /api/models/db[/...]`, plus `/enable` and `/disable`. `GET /api/models/available?provider=openai` returns the live catalog for a given provider.
+- **REST** — `GET/POST/PUT/DELETE /api/models[/...]`, plus `/enable` and `/disable`. `GET /api/models/available?provider=openai` returns the live catalog for a given provider.
 - **UI** — the Models / Providers screens in the desktop app or the `/models` slash command in the CLI.
 
 ## Claude CLI (Claude Pro/Max subscription)
@@ -64,7 +47,7 @@ Install Claude CLI 2.1.96+, run `claude login`, then register at least one claud
 Or:
 
 ```bash
-curl -X POST http://localhost:8765/api/models/db -H 'Content-Type: application/json' -d '{
+curl -X POST http://localhost:8765/api/models -H 'Content-Type: application/json' -d '{
   "provider": "claude-cli",
   "model_id": "claude-sonnet-4-6"
 }'

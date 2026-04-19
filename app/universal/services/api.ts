@@ -2,7 +2,7 @@
  * REST API client for OpenAgent vault operations.
  */
 
-import type { VaultNote, GraphData, AgentConfig, ModelConfig, ProviderConfig, ModelsResponse, UsageData, ModelCatalogEntry, DailyUsageEntry, ScheduledTask, CreateScheduledTaskInput, UpdateScheduledTaskInput, MCPEntry, ModelEntry, AvailableModel } from '../../common/types';
+import type { VaultNote, GraphData, AgentConfig, ProviderConfig, ModelsResponse, UsageData, ModelCatalogEntry, DailyUsageEntry, ScheduledTask, CreateScheduledTaskInput, UpdateScheduledTaskInput, MCPEntry, ModelEntry, AvailableModel } from '../../common/types';
 
 let baseUrl = '';
 
@@ -236,15 +236,8 @@ export async function deleteProvider(providerId: number): Promise<void> {
 }
 
 export async function getModels(): Promise<ModelsResponse> {
-  const [providers, activeRes] = await Promise.all([
-    getProviders(),
-    get<{ active: ModelConfig }>('/api/models/active').catch(() => ({ active: {} as ModelConfig })),
-  ]);
-  return { models: providers, active: activeRes.active };
-}
-
-export async function setActiveModel(model: ModelConfig): Promise<{ ok: boolean }> {
-  return put('/api/models/active', model);
+  const providers = await getProviders();
+  return { models: providers };
 }
 
 // ── Usage API ──

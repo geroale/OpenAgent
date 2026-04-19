@@ -3,11 +3,12 @@
 ## Full YAML
 
 LLM providers (API keys, base URLs), the per-provider model catalog,
-and the MCP server list live in SQLite, not in this file. Manage them
-via the `mcp-manager` / `model-manager` built-in MCPs, the REST
-endpoints (`/api/providers`, `/api/mcps`, `/api/models/db`), or the
-desktop/CLI UI. yaml stays the source of truth for identity, channels,
-memory paths, dream mode, and auto-update.
+the MCP server list, and scheduled tasks all live in SQLite, not in
+this file. Manage them via the `mcp-manager` / `model-manager` /
+`scheduler` built-in MCPs, the REST endpoints (`/api/providers`,
+`/api/mcps`, `/api/models`, `/api/scheduled-tasks`), or the desktop/CLI
+UI. yaml stays the source of truth for identity, channels, memory
+paths, dream mode, and auto-update.
 
 ```yaml
 name: my-agent
@@ -15,32 +16,12 @@ name: my-agent
 system_prompt: |
   You are a helpful assistant.
 
-# The active runtime is always the SmartRouter. Each session is routed
-# to either the Agno stack or the Claude CLI registry based on a
-# classifier + persistent session-side binding.
-model:
-  permission_mode: bypass        # bypass | auto | default
-  monthly_budget: 50             # USD; 0 disables budget guardrails
-  classifier_model: openai:gpt-4o-mini
-  # Optional explicit routing. Leave empty to auto-derive from the
-  # enabled models in the DB (sorted by output cost per million).
-  # routing:
-  #   simple: openai:gpt-4o-mini
-  #   medium: openai:gpt-4.1-mini
-  #   hard: claude-cli/claude-sonnet-4-6
-  #   fallback: openai:gpt-4o-mini
-
-# LLM provider credentials (API keys, base URLs) and the per-provider
-# model catalog live in the ``providers`` and ``models`` SQLite tables.
-# Add/manage them via ``openagent provider add``, the ``model-manager``
-# MCP, ``POST /api/providers`` + ``POST /api/models/db``, or the
-# Settings screen in the desktop app.
-#
-# MCPs used to live in a yaml ``mcp:`` list. They now live in the
-# ``mcps`` SQLite table. On upgrade, any pre-existing yaml entries are
-# imported once into the DB and then ignored; use the MCPs screen, the
-# ``/mcps`` slash command, or ``mcp-manager`` from inside the agent to
-# add/remove/toggle servers at runtime.
+# LLM provider credentials (API keys, base URLs), the per-provider
+# model catalog, MCP servers, and scheduled tasks all live in SQLite.
+# Add/manage them via the ``model-manager`` / ``mcp-manager`` /
+# ``scheduler`` MCPs, the matching REST endpoints, the
+# ``openagent provider`` CLI, or the Settings screens in the desktop
+# app.
 
 memory:
   db_path: "~/.openagent/openagent.db"
@@ -69,13 +50,6 @@ services:
     vault_path: ~/.openagent/memories
     folder_id: openagent-memories
 
-scheduler:
-  enabled: true       # global on/off switch for the scheduler loop
-  # tasks: [...]      # DEPRECATED — tasks now live in SQLite. Manage them
-                      # from the app's Tasks tab, the scheduler MCP, or the
-                      # `openagent task` CLI. Legacy entries listed here are
-                      # seeded into the DB once at startup with a warning.
-
 dream_mode:
   enabled: true
   time: "3:00"
@@ -96,26 +70,11 @@ service:
 
 Environment variables are substituted using `${VAR_NAME}` syntax.
 
-For `claude-cli` sessions, you can optionally tune how long idle claude
-subprocess clients are kept alive before the idle-cleanup task tears
-them down:
-
-```yaml
-model:
-  idle_ttl_seconds: 86400   # default: 24h
-```
-
-Legacy `model.provider` values (`claude-cli`, `anthropic`, `zhipu`, …)
-are still accepted and translated into a SmartRouter whose tiers all
-point at the single specified model. For most deployments, the cleaner
-setup is to leave `model.provider` unset and register the models you
-want in the DB via the model-manager MCP or the Models UI.
-
-> Per-turn `idle_timeout_seconds` and `hard_timeout_seconds` knobs are still
-> accepted for backwards compatibility but are no longer honoured — the only
-> per-turn ceiling is `BRIDGE_RESPONSE_TIMEOUT` (65 min). Legitimately long
-> tool calls (gradle, Electron builds, Maestro suites) now run to completion
-> as long as they keep making progress.
+The Claude Agent SDK is always invoked with `permission_mode =
+"bypassPermissions"` so scheduled and background turns never stall on
+an approval prompt. Long tool calls (gradle, Electron builds, Maestro
+suites) run to completion — the only per-turn ceiling is
+`BRIDGE_RESPONSE_TIMEOUT` (65 min).
 
 ## CLI Reference
 

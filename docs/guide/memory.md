@@ -40,7 +40,7 @@ OpenAgent injects a framework-level system prompt that covers:
 
 - How to use the vault (mcpvault tools, wikilinks, tags)
 - Prefer MCP tools over shell scripts
-- Act autonomously under `permission_mode: bypass`
+- Act autonomously (tool calls are pre-approved)
 - Be concise
 
 Your `system_prompt` in `openagent.yaml` should stay short — just identity and a pointer to the vault. Everything else belongs as `.md` notes.

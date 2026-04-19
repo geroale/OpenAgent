@@ -2,14 +2,9 @@
 
 ## Scheduler
 
-Cron tasks stored in SQLite — survive reboots. Runs as part of `openagent serve`.
-Changes to tasks take effect within ~30 seconds (the scheduler's next tick)
-without needing a restart.
-
-```yaml
-scheduler:
-  enabled: true   # global kill switch; set false to stop the scheduler loop
-```
+Cron tasks stored in SQLite — survive reboots. Runs as part of `openagent serve`
+whenever a database is attached. Changes take effect within ~30 seconds
+(the scheduler's next tick) without needing a restart.
 
 Manage tasks via:
 
@@ -18,24 +13,6 @@ Manage tasks via:
 - the `scheduler` MCP server (from inside an agent chat — `create_scheduled_task`,
   `update_scheduled_task`, etc.);
 - the `openagent task` CLI commands below.
-
-### Legacy YAML tasks (deprecated)
-
-Previously, tasks could be declared inline under `scheduler.tasks[]`:
-
-```yaml
-scheduler:
-  enabled: true
-  tasks:
-    - name: health-check
-      cron: "*/30 * * * *"
-      prompt: "Check services. If any is down, alert."
-```
-
-This is now **deprecated**. On startup, any YAML tasks are seeded into the
-SQLite database (dedup by name) and a warning is logged. After the first
-boot you can safely delete `scheduler.tasks` from your config — the tasks
-will keep running from the database.
 
 ### CLI Management
 
