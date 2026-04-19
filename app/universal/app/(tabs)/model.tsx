@@ -1,22 +1,24 @@
 import { colors, font, radius } from '../../theme';
 /**
- * Model screen — v0.10 vocabulary.
+ * Model screen — v0.12 vocabulary.
  *
  * Three concepts on this screen:
- *   - **provider**  (anthropic, openai, google, zai, …) — owns the API key.
- *                   Lives in ``openagent.yaml`` (source of truth for keys).
- *   - **framework** (agno | claude-cli) — the runtime that dispatches a
- *                   model. Per-model attribute; ``claude-cli`` only
- *                   applies to anthropic models and uses the local
- *                   ``claude`` binary instead of the API.
- *   - **model**     (gpt-4o-mini, claude-sonnet-4-6, glm-5…) — the bare
- *                   vendor id. Lives in the ``models`` SQLite table
- *                   alongside provider + framework.
+ *   - **provider row** (anthropic+agno, anthropic+claude-cli, openai+agno…)
+ *                      — a (name, framework) pair in the ``providers``
+ *                      table, keyed on a surrogate integer ``id``. The
+ *                      same vendor can exist twice: once with an API key
+ *                      for agno dispatch, once without (claude-cli uses
+ *                      the local ``claude`` binary / Pro/Max subscription).
+ *   - **model**        (gpt-4o-mini, claude-sonnet-4-6, glm-5…) — the bare
+ *                      vendor id. Lives in ``models.model`` with a
+ *                      ``provider_id`` FK to ``providers.id``.
+ *   - **runtime_id**   the derived composite string used in logs + session
+ *                      pins — ``<provider>:<model>`` for agno,
+ *                      ``claude-cli:<provider>:<model>`` for claude-cli.
  *
- * Add flow: pick a provider → optional framework toggle (anthropic only)
- * → server does /api/models/available to surface the provider's catalog
- * (live /v1/models first, OpenRouter cross-vendor fallback, bundled
- * pricing keys last) → multi-pick → POST /api/models/db.
+ * Add flow: pick a provider row → server does /api/models/available?
+ * provider_id=N to surface the vendor's catalog → multi-pick → POST
+ * /api/models with {provider_id, model}.
  */
 
 import Feather from '@expo/vector-icons/Feather';
@@ -27,8 +29,7 @@ import {
 import { useConnection } from '../../stores/connection';
 import {
   setBaseUrl,
-  getProviders, addModel as addProvider, deleteModel as deleteProvider,
-  testModel as testProvider,
+  getProviders, addProvider, deleteProvider, testProvider,
   listDbModels, deleteDbModel, enableDbModel, disableDbModel,
   createDbModel, listAvailableModels,
   setActiveModel, getUsage, getDailyUsage,
@@ -41,7 +42,7 @@ import ResponsiveSidebar from '../../components/ResponsiveSidebar';
 import { useConfirm } from '../../components/ConfirmDialog';
 import type {
   UsageData, DailyUsageEntry, ModelConfig, ModelEntry, AvailableModel,
-  ProviderConfig,
+  ProviderConfig, ModelFramework,
 } from '../../../common/types';
 
 type CategoryId = 'overview' | 'providers' | 'models' | 'costs';
@@ -58,29 +59,28 @@ const FALLBACK_PROVIDERS = [
   'xai', 'deepseek', 'cerebras', 'openrouter', 'local',
 ];
 
-type FrameworkPick = 'agno' | 'claude-cli';
-
 export default function ModelScreen() {
   const connConfig = useConnection((s) => s.config);
   const confirm = useConfirm();
 
   const [activeCategory, setActiveCategory] = useState<CategoryId>('overview');
 
-  // Providers (yaml)
-  const [providers, setProviders] = useState<Record<string, ProviderConfig>>({});
-  const [testResults, setTestResults] = useState<Record<string, { ok: boolean; error?: string }>>({});
-  const [testingProv, setTestingProv] = useState<string | null>(null);
+  // Providers (DB, one row per (name, framework) pair)
+  const [providers, setProviders] = useState<ProviderConfig[]>([]);
+  const [testResults, setTestResults] = useState<Record<number, { ok: boolean; error?: string }>>({});
+  const [testingProv, setTestingProv] = useState<number | null>(null);
 
   const [addingProv, setAddingProv] = useState(false);
   const [newProvName, setNewProvName] = useState('');
+  const [newProvFramework, setNewProvFramework] = useState<ModelFramework>('agno');
   const [newProvKey, setNewProvKey] = useState('');
   const [newProvUrl, setNewProvUrl] = useState('');
 
   // Models (DB)
   const [models, setModels] = useState<ModelEntry[]>([]);
   const [addingModel, setAddingModel] = useState(false);
-  const [addProvider_, setAddProvider] = useState('');
-  const [addFramework, setAddFramework] = useState<FrameworkPick>('agno');
+  // The provider-row selected in the Add Model dialog.
+  const [addProviderId, setAddProviderId] = useState<number | null>(null);
   const [available, setAvailable] = useState<AvailableModel[]>([]);
   const [loadingAvailable, setLoadingAvailable] = useState(false);
 
@@ -97,7 +97,7 @@ export default function ModelScreen() {
     if (!connConfig) return;
     try {
       const provs = await getProviders();
-      setProviders(provs || {});
+      setProviders(provs || []);
     } catch {}
     try {
       setModels(await listDbModels());
@@ -119,54 +119,57 @@ export default function ModelScreen() {
 
   const submitAddProvider = async () => {
     if (!newProvName.trim()) return;
+    // claude-cli rows carry no api_key (the subprocess uses the Pro/Max
+    // subscription); the backend rejects non-empty keys at the schema.
+    const key = newProvFramework === 'claude-cli' ? undefined : newProvKey.trim() || undefined;
     try {
-      const entry: any = {};
-      if (newProvKey.trim()) entry.api_key = newProvKey.trim();
-      if (newProvUrl.trim()) entry.base_url = newProvUrl.trim();
-      await addProvider(newProvName.trim(), entry);
+      await addProvider({
+        name: newProvName.trim(),
+        framework: newProvFramework,
+        api_key: key,
+        base_url: newProvUrl.trim() || undefined,
+      });
       setAddingProv(false);
-      setNewProvName(''); setNewProvKey(''); setNewProvUrl('');
+      setNewProvName('');
+      setNewProvFramework('agno');
+      setNewProvKey('');
+      setNewProvUrl('');
       await reload();
     } catch (e: any) {
       setError(e?.message || String(e));
     }
   };
 
-  const removeProvider = async (name: string) => {
+  const removeProvider = async (p: ProviderConfig) => {
     const ok = await confirm({
       title: 'Remove provider',
-      message: `Remove provider "${name}" and its API key?\n\nModels already registered under this provider stay in the database but will start failing the next time they're dispatched.`,
+      message: `Remove provider "${p.name}" (${p.framework})?\n\nAll models registered under this row are cascade-deleted.`,
       confirmLabel: 'Remove',
     });
     if (!ok) return;
-    await deleteProvider(name);
+    await deleteProvider(p.id);
     await reload();
   };
 
-  const testProv = async (name: string) => {
-    setTestingProv(name);
+  const testProv = async (p: ProviderConfig) => {
+    setTestingProv(p.id);
     try {
-      const r = await testProvider(name);
-      setTestResults((prev) => ({ ...prev, [name]: r }));
+      const r = await testProvider(p.id);
+      setTestResults((prev) => ({ ...prev, [p.id]: r }));
     } catch (e: any) {
-      setTestResults((prev) => ({ ...prev, [name]: { ok: false, error: e?.message || String(e) } }));
+      setTestResults((prev) => ({ ...prev, [p.id]: { ok: false, error: e?.message || String(e) } }));
     }
     setTestingProv(null);
   };
 
   // ── Model ops ──
 
-  const openAddModel = async (provider: string) => {
-    setAddProvider(provider);
-    // Anthropic without an API key → default to claude-cli (the user's
-    // Pro/Max subscription is the only way to actually run these).
-    const prov = providers[provider] || {};
-    const hasKey = Boolean(prov.api_key);
-    setAddFramework(provider === 'anthropic' && !hasKey ? 'claude-cli' : 'agno');
+  const openAddModel = async (providerId: number) => {
+    setAddProviderId(providerId);
     setAddingModel(true);
     setLoadingAvailable(true);
     try {
-      const entries = await listAvailableModels(provider);
+      const entries = await listAvailableModels(providerId);
       setAvailable(entries);
     } catch (e: any) {
       setAvailable([]);
@@ -176,11 +179,11 @@ export default function ModelScreen() {
   };
 
   const registerModel = async (entry: AvailableModel) => {
+    if (addProviderId == null) return;
     try {
       await createDbModel({
-        provider: addProvider_,
-        model_id: entry.id,
-        framework: addFramework,
+        provider_id: addProviderId,
+        model: entry.id,
         display_name: entry.display_name,
       });
       await reload();
@@ -191,8 +194,8 @@ export default function ModelScreen() {
 
   const toggleModel = async (m: ModelEntry) => {
     try {
-      if (m.enabled) await disableDbModel(m.runtime_id);
-      else await enableDbModel(m.runtime_id);
+      if (m.enabled) await disableDbModel(m.id);
+      else await enableDbModel(m.id);
       await reload();
     } catch (e: any) {
       setError(e?.message || String(e));
@@ -207,7 +210,7 @@ export default function ModelScreen() {
     });
     if (!ok) return;
     try {
-      await deleteDbModel(m.runtime_id);
+      await deleteDbModel(m.id);
       await reload();
     } catch (e: any) {
       setError(e?.message || String(e));
@@ -279,134 +282,181 @@ export default function ModelScreen() {
     </>
   );
 
-  const renderProviders = () => (
-    <>
-      <Text style={styles.sectionTitle}>Providers</Text>
-      <Text style={styles.hint}>
-        The vendors that OWN the models (anthropic, openai, google, …). Each provider needs an API key (except when you
-        only use them via claude-cli, which wraps Anthropic with your Pro/Max subscription).
-      </Text>
+  const renderProviders = () => {
+    const existingKeys = new Set(providers.map((p) => `${p.name}:${p.framework}`));
+    const duplicateAgno = newProvName
+      && newProvFramework === 'agno'
+      && existingKeys.has(`${newProvName}:agno`);
+    const duplicateCli = newProvName
+      && newProvFramework === 'claude-cli'
+      && existingKeys.has(`${newProvName}:claude-cli`);
 
-      {Object.entries(providers).map(([name, cfg]) => (
-        <View key={name} style={styles.card}>
-          <View style={styles.cardHeader}>
-            <Text style={styles.providerName}>{name}</Text>
-            <View style={styles.cardActions}>
-              <TouchableOpacity onPress={() => testProv(name)} disabled={testingProv === name}>
-                <Text style={styles.actionLink}>{testingProv === name ? '…' : 'Test'}</Text>
+    return (
+      <>
+        <Text style={styles.sectionTitle}>Providers</Text>
+        <Text style={styles.hint}>
+          Each row is a (vendor, framework) pair — the same vendor can be added twice:
+          once with an API key (Agno dispatch) and once without (claude-cli subscription).
+        </Text>
+
+        {providers.map((p) => (
+          <View key={p.id} style={styles.card}>
+            <View style={styles.cardHeader}>
+              <Text style={styles.providerName}>
+                {p.name}
+                <Text style={styles.providerFramework}>  ·  {p.framework}</Text>
+              </Text>
+              <View style={styles.cardActions}>
+                <TouchableOpacity onPress={() => testProv(p)} disabled={testingProv === p.id}>
+                  <Text style={styles.actionLink}>{testingProv === p.id ? '…' : 'Test'}</Text>
+                </TouchableOpacity>
+                <TouchableOpacity onPress={() => removeProvider(p)}>
+                  <Text style={[styles.actionLink, { color: colors.error }]}>Remove</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+            <Text style={styles.keyDisplay}>
+              Key: {p.framework === 'claude-cli' ? 'subscription — no API key' : p.api_key_display}
+            </Text>
+            {p.base_url && <Text style={styles.keyDisplay}>URL: {p.base_url}</Text>}
+            {testResults[p.id] && (
+              <Text style={testResults[p.id].ok ? styles.testOk : styles.testFail}>
+                {testResults[p.id].ok ? 'Connection OK' : `Failed: ${testResults[p.id].error}`}
+              </Text>
+            )}
+          </View>
+        ))}
+
+        {addingProv ? (
+          <View style={styles.card}>
+            <Text style={styles.label}>Vendor</Text>
+            <TextInput
+              style={[styles.input, { marginBottom: 8 }]}
+              value={newProvName}
+              onChangeText={setNewProvName}
+              placeholder="Type or pick below"
+              placeholderTextColor={colors.textMuted}
+            />
+            <View style={styles.chipRow}>
+              {FALLBACK_PROVIDERS.map((p) => (
+                <TouchableOpacity
+                  key={p}
+                  style={[styles.chip, newProvName === p && styles.chipActive]}
+                  onPress={() => {
+                    setNewProvName(p);
+                    // Anthropic defaults to claude-cli unless an agno row
+                    // already exists under that name.
+                    if (p === 'anthropic' && !existingKeys.has('anthropic:claude-cli')) {
+                      setNewProvFramework('claude-cli');
+                    } else {
+                      setNewProvFramework('agno');
+                    }
+                  }}
+                >
+                  <Text style={[styles.chipText, newProvName === p && styles.chipTextActive]}>{p}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+            <Text style={styles.label}>Framework</Text>
+            <View style={styles.chipRow}>
+              <TouchableOpacity
+                style={[styles.chip, newProvFramework === 'agno' && styles.chipActive]}
+                onPress={() => setNewProvFramework('agno')}
+              >
+                <Text style={[styles.chipText, newProvFramework === 'agno' && styles.chipTextActive]}>agno (API)</Text>
               </TouchableOpacity>
-              <TouchableOpacity onPress={() => removeProvider(name)}>
-                <Text style={[styles.actionLink, { color: colors.error }]}>Remove</Text>
+              <TouchableOpacity
+                style={[styles.chip, newProvFramework === 'claude-cli' && styles.chipActive]}
+                onPress={() => setNewProvFramework('claude-cli')}
+              >
+                <Text style={[styles.chipText, newProvFramework === 'claude-cli' && styles.chipTextActive]}>
+                  claude-cli (subscription)
+                </Text>
               </TouchableOpacity>
             </View>
-          </View>
-          <Text style={styles.keyDisplay}>
-            Key: {cfg.api_key
-              ? (cfg.api_key.startsWith('${') ? cfg.api_key : '****' + cfg.api_key.slice(-4))
-              : '—'}
-          </Text>
-          {cfg.base_url && <Text style={styles.keyDisplay}>URL: {cfg.base_url}</Text>}
-          {testResults[name] && (
-            <Text style={testResults[name].ok ? styles.testOk : styles.testFail}>
-              {testResults[name].ok ? 'Connection OK' : `Failed: ${testResults[name].error}`}
-            </Text>
-          )}
-        </View>
-      ))}
-
-      {addingProv ? (
-        <View style={styles.card}>
-          <Text style={styles.label}>Provider</Text>
-          <TextInput
-            style={[styles.input, { marginBottom: 8 }]}
-            value={newProvName}
-            onChangeText={setNewProvName}
-            placeholder="Type or pick below"
-            placeholderTextColor={colors.textMuted}
-          />
-          <View style={styles.chipRow}>
-            {FALLBACK_PROVIDERS.filter((p) => !providers[p]).map((p) => (
-              <TouchableOpacity
-                key={p}
-                style={[styles.chip, newProvName === p && styles.chipActive]}
-                onPress={() => setNewProvName(p)}
-              >
-                <Text style={[styles.chipText, newProvName === p && styles.chipTextActive]}>{p}</Text>
+            {(duplicateAgno || duplicateCli) && (
+              <Text style={styles.warnText}>
+                {newProvName} already exists under {newProvFramework}. Pick the other framework.
+              </Text>
+            )}
+            {newProvFramework === 'agno' && (
+              <>
+                <Text style={styles.label}>API Key</Text>
+                <TextInput
+                  style={styles.input}
+                  value={newProvKey}
+                  onChangeText={setNewProvKey}
+                  placeholder="sk-..."
+                  placeholderTextColor={colors.textMuted}
+                  secureTextEntry
+                />
+              </>
+            )}
+            <Text style={styles.label}>Base URL (optional)</Text>
+            <TextInput
+              style={styles.input}
+              value={newProvUrl}
+              onChangeText={setNewProvUrl}
+              placeholder="https://api.example.com/v1"
+              placeholderTextColor={colors.textMuted}
+            />
+            <View style={styles.formRow}>
+              <TouchableOpacity onPress={() => {
+                setAddingProv(false); setNewProvName('');
+                setNewProvFramework('agno'); setNewProvKey(''); setNewProvUrl('');
+              }}>
+                <Text style={{ color: colors.textMuted }}>Cancel</Text>
               </TouchableOpacity>
-            ))}
+              <Button
+                variant="primary" size="md" label="Add"
+                onPress={submitAddProvider}
+                disabled={!newProvName.trim() || Boolean(duplicateAgno) || Boolean(duplicateCli)}
+              />
+            </View>
           </View>
-          <Text style={styles.label}>API Key</Text>
-          <TextInput
-            style={styles.input}
-            value={newProvKey}
-            onChangeText={setNewProvKey}
-            placeholder="sk-..."
-            placeholderTextColor={colors.textMuted}
-            secureTextEntry
-          />
-          <Text style={styles.label}>Base URL (optional)</Text>
-          <TextInput
-            style={styles.input}
-            value={newProvUrl}
-            onChangeText={setNewProvUrl}
-            placeholder="https://api.example.com/v1"
-            placeholderTextColor={colors.textMuted}
-          />
-          <View style={styles.formRow}>
-            <TouchableOpacity onPress={() => {
-              setAddingProv(false); setNewProvName(''); setNewProvKey(''); setNewProvUrl('');
-            }}>
-              <Text style={{ color: colors.textMuted }}>Cancel</Text>
-            </TouchableOpacity>
-            <Button variant="primary" size="md" label="Add" onPress={submitAddProvider} />
-          </View>
-        </View>
-      ) : (
-        <TouchableOpacity style={styles.addBtn} onPress={() => setAddingProv(true)}>
-          <View style={styles.addBtnContent}>
-            <Feather name="plus" size={14} color={colors.primary} />
-            <Text style={styles.addBtnText}>Add Provider</Text>
-          </View>
-        </TouchableOpacity>
-      )}
-    </>
-  );
+        ) : (
+          <TouchableOpacity style={styles.addBtn} onPress={() => setAddingProv(true)}>
+            <View style={styles.addBtnContent}>
+              <Feather name="plus" size={14} color={colors.primary} />
+              <Text style={styles.addBtnText}>Add Provider</Text>
+            </View>
+          </TouchableOpacity>
+        )}
+      </>
+    );
+  };
 
   const renderModels = () => {
-    const byFramework: Record<string, ModelEntry[]> = { 'agno': [], 'claude-cli': [] };
+    // Group by provider row id so each (vendor, framework) pair owns a card.
+    const byProviderId = new Map<number, ModelEntry[]>();
     for (const m of models) {
-      (byFramework[m.framework] ||= []).push(m);
+      const bucket = byProviderId.get(m.provider_id) ?? [];
+      bucket.push(m);
+      byProviderId.set(m.provider_id, bucket);
     }
 
-    // Show every provider we have a key for, plus anthropic always
-    // (the user may want claude-cli without an API key — that route
-    // bills via the Pro/Max subscription).
-    const provOptions = Array.from(
-      new Set([...Object.keys(providers), 'anthropic']),
-    ).sort();
-    const canPickCli = addProvider_ === 'anthropic';
-
-    const noProviders = Object.keys(providers).length === 0;
+    const noProviders = providers.length === 0;
     const noModels = models.length === 0;
+    const selectedProvider = addProviderId != null
+      ? providers.find((p) => p.id === addProviderId) ?? null
+      : null;
 
     return (
       <>
         <Text style={styles.sectionTitle}>Models</Text>
         <Text style={styles.hint}>
-          Every row is a (provider, framework, model) triple. The smart router classifies each message and dispatches
-          to one of these — Agno rows hit the provider's API, claude-cli rows hit the local Claude binary.
+          Each row is a (provider_row, model) pair. The smart router classifies each message and dispatches
+          via the provider row's framework — Agno hits the vendor API, claude-cli hits the local Claude binary.
         </Text>
 
-        {/* Empty-state CTA: if the user has neither providers nor models,
-            the Add Model flow has nothing to offer for agno routes. Send
-            them to Providers first (claude-cli-only works without any
-            provider key, so we still surface the Add Model button below). */}
+        {/* Empty-state CTA: no providers → no models possible. */}
         {noProviders && noModels && (
           <Card>
             <Text style={styles.emptyStateTitle}>No providers configured</Text>
             <Text style={styles.emptyStateBody}>
-              Add a provider (openai, anthropic, …) with its API key first, then come back here to pick models from it.
-              Or skip providers entirely and add a claude-cli model below (Pro/Max subscription, no API key required).
+              Add a provider row first. For Anthropic-via-subscription, pick framework=claude-cli
+              (no API key needed). For every other vendor (or Anthropic-via-API), pick framework=agno
+              and supply the API key.
             </Text>
             <View style={{ height: 10 }} />
             <Button
@@ -419,31 +469,32 @@ export default function ModelScreen() {
           </Card>
         )}
 
-        {/* Only render a framework group if it actually has rows — a
-            header + "No claude-cli models configured" for a user who
-            has zero claude-cli intent is just visual noise. If BOTH
-            groups are empty, fall through to the global empty-state
-            which handles the no-providers + no-models CTA above. */}
-        {(['agno', 'claude-cli'] as const)
-          .filter((fw) => byFramework[fw].length > 0)
-          .map((fw) => (
-          <View key={fw} style={{ marginBottom: 14 }}>
-            <Text style={styles.frameworkHeader}>
-              {fw}
-              {fw === 'claude-cli' && (
-                <Text style={styles.frameworkSub}>  · Pro/Max subscription, no per-token billing</Text>
-              )}
-            </Text>
-            <Card padded={false}>
-              {byFramework[fw].map((m, i) => (
-                  <View key={m.runtime_id} style={[styles.row, i > 0 && styles.rowBorder]}>
+        {providers.map((p) => {
+          const rows = byProviderId.get(p.id) ?? [];
+          if (rows.length === 0) return null;
+          return (
+            <View key={p.id} style={{ marginBottom: 14 }}>
+              <Text style={styles.frameworkHeader}>
+                {p.name}
+                <Text style={styles.frameworkSub}>  ·  {p.framework}</Text>
+                {p.framework === 'claude-cli' && (
+                  <Text style={styles.frameworkSub}>  ·  subscription billing</Text>
+                )}
+              </Text>
+              <Card padded={false}>
+                {rows.map((m, i) => (
+                  <View key={m.id} style={[styles.row, i > 0 && styles.rowBorder]}>
                     <View style={styles.rowInfo}>
                       <Text style={styles.rowTitle}>
-                        <Text style={styles.rowProvider}>{m.provider}</Text>
-                        <Text style={styles.rowSep}> · </Text>
-                        <Text style={styles.rowModel}>{m.model_id}</Text>
+                        <Text style={styles.rowModel}>{m.model}</Text>
+                        {m.display_name && (
+                          <>
+                            <Text style={styles.rowSep}>  ·  </Text>
+                            <Text style={styles.rowProvider}>{m.display_name}</Text>
+                          </>
+                        )}
                       </Text>
-                      {fw === 'claude-cli' ? (
+                      {p.framework === 'claude-cli' ? (
                         <Text style={styles.rowMeta}>subscription</Text>
                       ) : (m.input_cost_per_million || m.output_cost_per_million) ? (
                         <Text style={styles.rowMeta}>
@@ -460,49 +511,34 @@ export default function ModelScreen() {
                       <Feather name="x" size={14} color={colors.textMuted} />
                     </TouchableOpacity>
                   </View>
-              ))}
-            </Card>
-          </View>
-        ))}
+                ))}
+              </Card>
+            </View>
+          );
+        })}
 
         {addingModel ? (
           <Card>
-            <Text style={styles.label}>Provider</Text>
+            <Text style={styles.label}>Provider row</Text>
             <View style={styles.chipRow}>
-              {provOptions.map((p) => (
+              {providers.map((p) => (
                 <TouchableOpacity
-                  key={p}
-                  style={[styles.chip, addProvider_ === p && styles.chipActive]}
-                  onPress={() => openAddModel(p)}
+                  key={p.id}
+                  style={[styles.chip, addProviderId === p.id && styles.chipActive]}
+                  onPress={() => openAddModel(p.id)}
                 >
-                  <Text style={[styles.chipText, addProvider_ === p && styles.chipTextActive]}>{p}</Text>
+                  <Text style={[styles.chipText, addProviderId === p.id && styles.chipTextActive]}>
+                    {p.name}  ·  {p.framework}
+                  </Text>
                 </TouchableOpacity>
               ))}
             </View>
 
-            {canPickCli && (
+            {selectedProvider && (
               <>
-                <Text style={styles.label}>Framework</Text>
-                <View style={styles.chipRow}>
-                  <TouchableOpacity
-                    style={[styles.chip, addFramework === 'agno' && styles.chipActive]}
-                    onPress={() => setAddFramework('agno')}
-                  >
-                    <Text style={[styles.chipText, addFramework === 'agno' && styles.chipTextActive]}>agno (API)</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={[styles.chip, addFramework === 'claude-cli' && styles.chipActive]}
-                    onPress={() => setAddFramework('claude-cli')}
-                  >
-                    <Text style={[styles.chipText, addFramework === 'claude-cli' && styles.chipTextActive]}>claude-cli (subscription)</Text>
-                  </TouchableOpacity>
-                </View>
-              </>
-            )}
-
-            {addProvider_ && (
-              <>
-                <Text style={styles.label}>Available from {addProvider_}</Text>
+                <Text style={styles.label}>
+                  Available from {selectedProvider.name} ({selectedProvider.framework})
+                </Text>
                 {loadingAvailable ? (
                   <Text style={styles.emptyText}>Loading…</Text>
                 ) : available.length === 0 ? (
@@ -528,7 +564,7 @@ export default function ModelScreen() {
 
             <View style={[styles.formRow, { marginTop: 10 }]}>
               <TouchableOpacity onPress={() => {
-                setAddingModel(false); setAddProvider(''); setAvailable([]);
+                setAddingModel(false); setAddProviderId(null); setAvailable([]);
               }}>
                 <Text style={{ color: colors.textMuted }}>Close</Text>
               </TouchableOpacity>
@@ -667,6 +703,13 @@ const styles = StyleSheet.create({
   providerName: {
     fontSize: 14, fontWeight: '600', color: colors.text,
     fontFamily: font.mono, letterSpacing: -0.1,
+  },
+  providerFramework: {
+    fontSize: 11, fontWeight: '400', color: colors.textMuted,
+    textTransform: 'uppercase', letterSpacing: 1,
+  },
+  warnText: {
+    fontSize: 11, color: colors.error, marginTop: 6, marginBottom: 2,
   },
   actionLink: { fontSize: 12, color: colors.textSecondary, fontWeight: '500' },
   keyDisplay: { fontSize: 11, color: colors.textMuted, marginTop: 4, fontFamily: font.mono },

@@ -201,43 +201,39 @@ export async function triggerRestart(): Promise<{ ok: boolean }> {
 // addModel/updateModel/deleteModel helpers below target the DB-backed
 // ``/api/models/db`` endpoints.
 
-export async function getProviders(): Promise<Record<string, ProviderConfig>> {
-  const data = await get<{ providers: Record<string, ProviderConfig> }>('/api/providers');
+export async function getProviders(): Promise<ProviderConfig[]> {
+  const data = await get<{ providers: ProviderConfig[] }>('/api/providers');
   return data.providers;
 }
 
 export async function testProvider(
-  provider: string, model_id?: string,
-): Promise<{ ok: boolean; error?: string }> {
+  providerId: number, model?: string,
+): Promise<{ ok: boolean; error?: string; model?: string; response?: string }> {
   try {
-    return await post(`/api/providers/${encodeURIComponent(provider)}/test`, { model_id });
+    return await post(`/api/providers/${providerId}/test`, { model });
   } catch (e: any) {
     return { ok: false, error: e?.message || String(e) };
   }
 }
 
-export async function addProvider(
-  name: string, config: { api_key?: string; base_url?: string },
-): Promise<{ ok: boolean }> {
-  return post('/api/providers', { name, ...config });
+export async function addProvider(body: {
+  name: string;
+  framework: 'agno' | 'claude-cli';
+  api_key?: string;
+  base_url?: string;
+}): Promise<{ ok: boolean; provider: ProviderConfig }> {
+  return post('/api/providers', body);
 }
 
 export async function updateProvider(
-  name: string, config: { api_key?: string; base_url?: string },
-): Promise<{ ok: boolean }> {
-  return put(`/api/providers/${encodeURIComponent(name)}`, config);
+  providerId: number, body: { api_key?: string; base_url?: string; enabled?: boolean },
+): Promise<{ ok: boolean; provider: ProviderConfig }> {
+  return put(`/api/providers/${providerId}`, body);
 }
 
-export async function deleteProvider(name: string): Promise<void> {
-  await del(`/api/providers/${encodeURIComponent(name)}`);
+export async function deleteProvider(providerId: number): Promise<void> {
+  await del(`/api/providers/${providerId}`);
 }
-
-// Back-compat aliases matching the pre-v0.11 names that the model.tsx
-// screen imports. Keeps the refactor diff small.
-export const addModel = addProvider;
-export const updateModel = updateProvider;
-export const deleteModel = deleteProvider;
-export const testModel = testProvider;
 
 export async function getModels(): Promise<ModelsResponse> {
   const [providers, activeRes] = await Promise.all([
@@ -324,58 +320,63 @@ export async function disableMcp(name: string): Promise<MCPEntry> {
   return data.mcp;
 }
 
-// ── DB-backed Model catalog (maps to /api/models/db) ──
+// ── DB-backed Model catalog (/api/models) ──
 //
-// The ``models`` SQLite table holds the per-provider model catalog.
-// Available models (what a provider actually exposes for a given API
-// key) live at /api/models/available?provider=X.
+// Each row is a (provider_id, model) pair under a provider row. The
+// response carries the enriched provider_name + framework + derived
+// runtime_id so the UI doesn't have to re-join.
+//
+// Available models (what a vendor actually exposes for a given API
+// key) live at /api/models/available?provider_id=N.
 
-export async function listDbModels(opts?: { provider?: string; enabledOnly?: boolean }): Promise<ModelEntry[]> {
+export async function listDbModels(opts?: {
+  providerId?: number;
+  framework?: 'agno' | 'claude-cli';
+  enabledOnly?: boolean;
+}): Promise<ModelEntry[]> {
   const params = new URLSearchParams();
-  if (opts?.provider) params.set('provider', opts.provider);
+  if (opts?.providerId) params.set('provider_id', String(opts.providerId));
+  if (opts?.framework) params.set('framework', opts.framework);
   if (opts?.enabledOnly) params.set('enabled_only', '1');
   const qs = params.toString();
-  const data = await get<{ models: ModelEntry[] }>(`/api/models/db${qs ? `?${qs}` : ''}`);
+  const data = await get<{ models: ModelEntry[] }>(`/api/models${qs ? `?${qs}` : ''}`);
   return data.models;
 }
 
 export async function createDbModel(entry: {
-  provider: string;
-  model_id: string;
-  framework?: 'agno' | 'claude-cli';
+  provider_id: number;
+  model: string;
   display_name?: string;
-  input_cost_per_million?: number;
-  output_cost_per_million?: number;
   tier_hint?: string;
   enabled?: boolean;
   metadata?: Record<string, unknown>;
 }): Promise<ModelEntry> {
-  const data = await post<{ model: ModelEntry }>('/api/models/db', entry);
+  const data = await post<{ model: ModelEntry }>('/api/models', entry);
   return data.model;
 }
 
-export async function updateDbModel(runtimeId: string, patchBody: Partial<ModelEntry>): Promise<ModelEntry> {
-  const data = await put<{ model: ModelEntry }>(`/api/models/db/${encodeURIComponent(runtimeId)}`, patchBody);
+export async function updateDbModel(modelId: number, patchBody: Partial<ModelEntry>): Promise<ModelEntry> {
+  const data = await put<{ model: ModelEntry }>(`/api/models/${modelId}`, patchBody);
   return data.model;
 }
 
-export async function deleteDbModel(runtimeId: string): Promise<void> {
-  await del(`/api/models/db/${encodeURIComponent(runtimeId)}`);
+export async function deleteDbModel(modelId: number): Promise<void> {
+  await del(`/api/models/${modelId}`);
 }
 
-export async function enableDbModel(runtimeId: string): Promise<ModelEntry> {
-  const data = await post<{ model: ModelEntry }>(`/api/models/db/${encodeURIComponent(runtimeId)}/enable`, {});
+export async function enableDbModel(modelId: number): Promise<ModelEntry> {
+  const data = await post<{ model: ModelEntry }>(`/api/models/${modelId}/enable`, {});
   return data.model;
 }
 
-export async function disableDbModel(runtimeId: string): Promise<ModelEntry> {
-  const data = await post<{ model: ModelEntry }>(`/api/models/db/${encodeURIComponent(runtimeId)}/disable`, {});
+export async function disableDbModel(modelId: number): Promise<ModelEntry> {
+  const data = await post<{ model: ModelEntry }>(`/api/models/${modelId}/disable`, {});
   return data.model;
 }
 
-export async function listAvailableModels(provider: string): Promise<AvailableModel[]> {
-  const data = await get<{ provider: string; models: AvailableModel[] }>(
-    `/api/models/available?provider=${encodeURIComponent(provider)}`,
+export async function listAvailableModels(providerId: number): Promise<AvailableModel[]> {
+  const data = await get<{ provider_id: number; provider: string; framework: string; models: AvailableModel[] }>(
+    `/api/models/available?provider_id=${providerId}`,
   );
   return data.models;
 }

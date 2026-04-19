@@ -91,12 +91,22 @@ export interface ModelConfig {
   classifier_model?: string;
 }
 
+// OpenAgent v0.12 vocabulary:
+//   - provider row = (name, framework) pair with a surrogate integer id
+//   - the same vendor can appear twice (e.g. anthropic+agno and anthropic+claude-cli)
+//   - api_key is NULL for claude-cli rows (subscription auth, no API key)
+export type ModelFramework = 'agno' | 'claude-cli';
+
 export interface ProviderConfig {
-  api_key?: string;
-  api_key_display?: string;
-  base_url?: string;
-  // The per-provider model list lives in the ``models`` SQLite table —
-  // fetch it via ``listDbModels({provider})``.
+  id: number;
+  name: string;
+  framework: ModelFramework;
+  api_key_display: string;    // "****abcd" | "${VAR}" | "—"
+  base_url: string | null;
+  enabled: boolean;
+  metadata?: Record<string, unknown>;
+  created_at?: number;
+  updated_at?: number;
 }
 
 export interface ModelCatalogEntry {
@@ -115,7 +125,9 @@ export interface DailyUsageEntry {
 }
 
 export interface ModelsResponse {
-  models: Record<string, ProviderConfig>;
+  // v0.12: flat list — dict-by-name would collide when the same vendor
+  // is registered under both frameworks.
+  models: ProviderConfig[];
   active: ModelConfig;
 }
 
@@ -156,23 +168,29 @@ export interface MCPEntry {
   updated_at: number;
 }
 
-// OpenAgent model-catalog vocabulary (v0.10+):
-//   provider  = the model's vendor/owner (anthropic, openai, google, zai, local…)
-//   framework = the runtime OpenAgent dispatches through ("agno" | "claude-cli")
-//   model_id  = the bare vendor id (gpt-4o-mini, claude-sonnet-4-6, glm-5…)
-//   runtime_id = canonical string used across REST / SmartRouter / usage logs
-export type ModelFramework = 'agno' | 'claude-cli';
-
+// OpenAgent model-catalog vocabulary (v0.12+):
+//   provider_id   = FK to providers.id — authoritative.
+//   provider_name = the vendor (anthropic, openai, google, zai, …).
+//                   Denormalised on the response for rendering.
+//   framework     = inherited from the provider row ("agno" | "claude-cli").
+//                   Same reason: denormalised for the UI.
+//   model         = bare vendor id (gpt-4o-mini, claude-sonnet-4-6, …).
+//   runtime_id    = derived string used in session pins and classifier
+//                   output; computed server-side from
+//                   (provider_name, model, framework).
 export interface ModelEntry {
-  runtime_id: string;
-  provider: string;
+  id: number;
+  provider_id: number;
+  provider_name: string;
   framework: ModelFramework;
-  model_id: string;
+  runtime_id: string;
+  model: string;
   display_name?: string | null;
   input_cost_per_million?: number | null;
   output_cost_per_million?: number | null;
   tier_hint?: string | null;
   enabled: boolean;
+  provider_enabled?: boolean;
   metadata: Record<string, unknown>;
   created_at: number;
   updated_at: number;
@@ -192,7 +210,7 @@ export interface AgentConfig {
   name?: string;
   system_prompt?: string;
   model?: ModelConfig;
-  providers?: Record<string, ProviderConfig>;
+  providers?: ProviderConfig[];
   dream_mode?: { enabled: boolean; time: string };
   auto_update?: { enabled: boolean; mode: string; check_interval: string };
   channels?: Record<string, any>;
