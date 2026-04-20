@@ -1,4 +1,5 @@
 import { defineConfig } from "vitepress";
+import { withMermaid } from "vitepress-plugin-mermaid";
 
 const repo = "https://github.com/geroale/OpenAgent";
 const site = "https://openagent.uno/";
@@ -33,7 +34,7 @@ const guideSidebar = [
 ];
 
 
-export default defineConfig({
+export default withMermaid(defineConfig({
   title: "OpenAgent",
   description:
     "Persistent AI agent framework with MCP tools, long-term memory, and multi-channel support.",
@@ -98,4 +99,8 @@ export default defineConfig({
       copyright: "Copyright 2026 OpenAgent",
     },
   },
-});
+  mermaid: {
+    theme: "default",
+    securityLevel: "loose",
+  },
+}));
