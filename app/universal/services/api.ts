@@ -477,10 +477,23 @@ export async function createDbModel(entry: {
   display_name?: string;
   tier_hint?: string;
   enabled?: boolean;
+  is_classifier?: boolean;
   metadata?: Record<string, unknown>;
 }): Promise<ModelEntry> {
   const data = await post<{ model: ModelEntry }>('/api/models', entry);
   return data.model;
+}
+
+// Opt this model into the SmartRouter classifier pool. Multiple rows
+// may carry the flag at once — the router picks the first flagged
+// entry in catalog order each turn. Narrow PUT that only touches this
+// row; other flags stay intact.
+export async function setClassifierModel(modelId: number): Promise<ModelEntry> {
+  return updateDbModel(modelId, { is_classifier: true });
+}
+
+export async function unsetClassifierModel(modelId: number): Promise<ModelEntry> {
+  return updateDbModel(modelId, { is_classifier: false });
 }
 
 export async function updateDbModel(modelId: number, patchBody: Partial<ModelEntry>): Promise<ModelEntry> {

@@ -178,6 +178,12 @@ export interface ModelEntry {
   output_cost_per_million?: number | null;
   tier_hint?: string | null;
   enabled: boolean;
+  // When true, this row is eligible to act as the SmartRouter's turn-1
+  // classifier. Multiple rows may carry the flag — the router picks
+  // the first flagged entry in catalog order each turn, so the flag
+  // opts a model into the "classifier pool" rather than claiming
+  // exclusive ownership.
+  is_classifier?: boolean;
   provider_enabled?: boolean;
   metadata: Record<string, unknown>;
   created_at: number;

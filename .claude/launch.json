@@ -6,6 +6,13 @@
       "runtimeExecutable": "npx",
       "runtimeArgs": ["vitepress", "dev", "docs", "--port", "5179"],
       "port": 5179
+    },
+    {
+      "name": "app-web",
+      "cwd": "app/universal",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": ["expo", "start", "--web", "--port", "19006"],
+      "port": 19006
     }
   ]
 }

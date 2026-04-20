@@ -32,6 +32,7 @@ import {
   getProviders, addProvider, deleteProvider, testProvider,
   listDbModels, deleteDbModel, enableDbModel, disableDbModel,
   createDbModel, listAvailableModels,
+  setClassifierModel, unsetClassifierModel,
   getUsage, getDailyUsage,
 } from '../../services/api';
 import Button from '../../components/Button';
@@ -197,6 +198,20 @@ export default function ModelScreen() {
     try {
       if (m.enabled) await disableDbModel(m.id);
       else await enableDbModel(m.id);
+      await reload();
+    } catch (e: any) {
+      setError(e?.message || String(e));
+    }
+  };
+
+  // Flip the is_classifier flag on this row only. Multiple rows may
+  // carry the flag simultaneously — they form a "classifier pool" and
+  // the router picks the first flagged entry per turn. Toggling here
+  // is a narrow PUT that never touches other rows.
+  const toggleClassifier = async (m: ModelEntry) => {
+    try {
+      if (m.is_classifier) await unsetClassifierModel(m.id);
+      else await setClassifierModel(m.id);
       await reload();
     } catch (e: any) {
       setError(e?.message || String(e));
@@ -467,6 +482,12 @@ export default function ModelScreen() {
                             <Text style={styles.rowProvider}>{m.display_name}</Text>
                           </>
                         )}
+                        {m.is_classifier && (
+                          <>
+                            <Text style={styles.rowSep}>  ·  </Text>
+                            <Text style={styles.routerTag}>router pool</Text>
+                          </>
+                        )}
                       </Text>
                       {p.framework === 'claude-cli' ? (
                         <Text style={styles.rowMeta}>subscription</Text>
@@ -478,6 +499,19 @@ export default function ModelScreen() {
                         <Text style={styles.rowMeta}>no pricing</Text>
                       )}
                     </View>
+                    <TouchableOpacity
+                      style={styles.classifierBtn}
+                      onPress={() => toggleClassifier(m)}
+                      accessibilityLabel={
+                        m.is_classifier ? 'Unset router classifier' : 'Set as router classifier'
+                      }
+                    >
+                      <Feather
+                        name="git-branch"
+                        size={14}
+                        color={m.is_classifier ? colors.primary : colors.textMuted}
+                      />
+                    </TouchableOpacity>
                     <TouchableOpacity style={styles.toggleBtn} onPress={() => toggleModel(m)}>
                       <View style={[styles.toggleDot, m.enabled ? styles.toggleOn : styles.toggleOff]} />
                     </TouchableOpacity>
@@ -736,6 +770,11 @@ const styles = StyleSheet.create({
   toggleDot: { width: 10, height: 10, borderRadius: 5 },
   toggleOn: { backgroundColor: colors.success },
   toggleOff: { backgroundColor: colors.border },
+  classifierBtn: { padding: 6, marginHorizontal: 2 },
+  routerTag: {
+    fontSize: 10, fontWeight: '700', color: colors.primary,
+    textTransform: 'uppercase', letterSpacing: 0.5,
+  },
   removeBtn: { padding: 6 },
 
   pickerItem: {
