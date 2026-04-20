@@ -17,57 +17,35 @@ Everything below runs inside a single `AgentServer` process started by
 scheduler, and any bridges; nothing runs as a separate daemon.
 
 ```mermaid
-flowchart TB
-    Clients["Clients<br/>(desktop / CLI / bridges)"]:::ext
+flowchart LR
+    Clients["Clients<br/>desktop · CLI · bridges"]
+    GW["Gateway<br/>WS + REST"]
 
-    subgraph Server["AgentServer (openagent serve)"]
-        GW["Gateway<br/>(see Gateway page)"]:::thin
-        Agent["Agent<br/>core/agent.py"]
+    subgraph Core["AgentServer"]
+        direction TB
+        Agent["Agent"]
         Router["SmartRouter"]
-        Agno["AgnoProvider"]
-        CCLI["ClaudeCLIRegistry"]
         Pool["MCPPool"]
-        Sched["Scheduler<br/>(cron + dream mode<br/>+ auto-update)"]
+        Sched["Scheduler"]
     end
 
-    subgraph MCPs["MCP servers (subprocess / HTTP)"]
-        Built["Built-in (11)<br/>vault · filesystem · editor<br/>shell · web-search<br/>computer-control · chrome-devtools<br/>messaging · scheduler<br/>mcp-manager · model-manager"]
-        Custom["Custom MCPs<br/>(user-added)"]
-    end
+    LLMs["LLMs<br/>Agno providers · Claude CLI"]
+    MCPs["MCP servers<br/>built-ins + custom"]
+    State["State<br/>SQLite · vault · YAML"]
 
-    subgraph State["Persistence"]
-        DB[("openagent.db (SQLite)<br/>mcps · models · providers<br/>scheduled_tasks · usage_log<br/>session_bindings · sdk_sessions")]
-        Vault[("memories/ vault<br/>Obsidian markdown + wikilinks")]
-        YAML[["openagent.yaml<br/>(bootstrap + channels)"]]
-    end
-
-    subgraph LLMs["LLM endpoints"]
-        AgnoLLM["Agno providers<br/>OpenAI · Anthropic API<br/>Google · Groq · xAI<br/>DeepSeek · Mistral · Cerebras<br/>Z.ai · OpenRouter<br/>+ any OpenAI-compatible"]
-        ClaudeBin["Claude CLI<br/>(Pro/Max subscription)<br/>claude-agent-sdk subprocess"]
-    end
-
-    Clients -.WS + REST.-> GW
-    GW --> Agent
+    Clients --> GW --> Agent
     Sched --> Agent
-
-    Agent --> Router
-    Router -->|Agno tiers| Agno
-    Router -->|claude-cli tier| CCLI
-    Agno --> AgnoLLM
-    CCLI --> ClaudeBin
-
-    Agno --> Pool
-    CCLI --> Pool
-    Pool --> Built
-    Pool --> Custom
-
-    Agent <--> DB
-    Agent -. via vault MCP .-> Vault
-    Server -. loads .-> YAML
-
-    classDef ext fill:#eef,stroke:#99f
-    classDef thin fill:#fafafa,stroke:#bbb,stroke-dasharray:3 3
+    Agent --> Router --> Pool
+    Router --> LLMs
+    Pool --> MCPs
+    Agent <--> State
 ```
+
+Each box expands into its own section below. The later diagrams zoom in
+on what SmartRouter does (§3), how the MCP pool is built (§4), how the
+vault is accessed (§5), how the scheduler drives tasks and Dream Mode
+(§6), and where state lives (§8). The Gateway itself has its own
+[dedicated page](./gateway.md).
 
 ## 2. Message flow
 
@@ -184,34 +162,20 @@ don't pay N times to spin up the same subprocess when the router
 dispatches between tiers.
 
 ```mermaid
-flowchart TB
-    DB[(mcps table<br/>source of truth)] --> Boot
+flowchart LR
+    Seed["BUILTIN_MCP_SPECS<br/>auto-seeded on boot"] --> DB[(mcps table)]
+    Manager["mcp-manager MCP<br/>/api/mcps · UI"] --> DB
 
-    subgraph Boot["Boot: ensure_builtin_mcps()"]
-        Specs["BUILTIN_MCP_SPECS<br/>(openagent/mcp/builtins.py)"]
-        Specs --> Seed["Backfill missing<br/>built-in rows<br/>(forward compat)"]
-        Seed --> DB
-    end
+    DB --> Pool["MCPPool.connect()"]
+    Pool --> Stdio["stdio subprocess"]
+    Pool --> Http["HTTP / SSE client"]
 
-    DB --> PoolBuild["MCPPool.connect()"]
-    PoolBuild --> Enabled{for each<br/>enabled row}
+    Stdio --> Tools["Tools available to agent"]
+    Http --> Tools
+    Tools --> Agno[AgnoProvider]
+    Tools --> CCLI[ClaudeCLIRegistry]
 
-    Enabled -->|command:| Stdio["Spawn stdio subprocess<br/>(Node / Python / native bin)"]
-    Enabled -->|url:| Http["HTTP/SSE client<br/>(+ OAuth if required)"]
-
-    Stdio --> Toolkits
-    Http --> Toolkits
-
-    subgraph Toolkits["Pool products"]
-        Agno["agno_toolkits<br/>(Agno MCPTools list)"]
-        Sdk["claude_sdk_servers<br/>(mcp_servers dict)"]
-    end
-
-    Toolkits --> AgnoProv["AgnoProvider"]
-    Toolkits --> CCLI["ClaudeCLIRegistry"]
-
-    Manager["mcp-manager MCP<br/>/api/mcps<br/>UI toggles"] -. writes .-> DB
-    DB -. updated_at bump .-> Reload["Hot reload:<br/>new subprocesses up,<br/>toolkits swapped in place,<br/>old subprocesses torn down"]
+    DB -. updated_at bump .-> Pool
 ```
 
 **Built-ins vs custom.** Built-in rows (`kind='default'` or `'builtin'`)
