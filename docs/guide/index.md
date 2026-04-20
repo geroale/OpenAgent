@@ -21,7 +21,8 @@ It's model-agnostic: Claude, GLM, Ollama, LM Studio, vLLM, or any OpenAI-compati
 ## Clients & operations
 
 - [Desktop App](./desktop-app.md)
-- [Architecture](./services.md)
+- [Architecture diagrams](./architecture.md) — system flow in Mermaid
+- [Services & gateway](./services.md)
 - [Deployment](./deployment.md)
 
 ## Examples
