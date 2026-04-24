@@ -33,3 +33,19 @@ dream_mode:
   enabled: true
   time: "3:00"       # local time
 ```
+
+## Manager Review
+
+Weekly self-review task — the agent audits its own work as a project manager would.
+Complements Dream Mode (nightly hygiene) with a forward-looking pass: reviews
+`pending-automation` / `followup` notes and either schedules them or archives them,
+scans for recurring work that should be automated, audits existing scheduled tasks
+and workflows, and writes a receipt under `manager-reviews/review-YYYY-MM-DD.md`.
+
+Enabled by default on Monday 9am local time. Set `enabled: false` to opt out.
+
+```yaml
+manager_review:
+  enabled: true
+  cron: "0 9 * * MON"   # standard 5-field cron
+```

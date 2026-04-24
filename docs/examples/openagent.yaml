@@ -98,6 +98,14 @@ dream_mode:
   enabled: true
   time: "3:00"
 
+# Weekly self-review: the agent audits its own work as a project manager
+# would — reviews pending automations, detects recurring work to schedule,
+# prunes stale vault notes, logs a receipt under manager-reviews/.
+# Enabled by default on Monday 9am local time.
+manager_review:
+  enabled: true
+  cron: "0 9 * * MON"
+
 # Auto-update: pip upgrade from PyPI on schedule. mode=auto exits with
 # code 75 so the OS service restarts with the new version.
 auto_update:
