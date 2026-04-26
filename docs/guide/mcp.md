@@ -13,7 +13,7 @@ All MCP tools are available to every model — model-agnostic by design. OpenAge
 | `shell` | Cross-platform shell execution | Node.js |
 | `computer-control` | Screenshot, mouse, keyboard (macOS/Linux/Windows) | native binary |
 | `chrome-devtools` | Browser automation, DOM, performance | Node.js + Chrome |
-| `messaging` | Send messages via Telegram/Discord/WhatsApp | Channel tokens |
+| `messaging` | Send via Telegram/Discord/WhatsApp + AI-driven phone calls / SMS via Twilio (see [phone-mcp.md](phone-mcp.md)) | Channel tokens / Twilio + OpenAI |
 | `scheduler` | Manage cron tasks from within conversations | Python |
 | `mcp-manager` | Let the agent add/remove/toggle MCP servers at runtime | Python |
 | `model-manager` | Let the agent manage its LLM catalog at runtime | Python |
