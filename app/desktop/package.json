@@ -20,8 +20,13 @@
     "start": "tsc && electron ."
   },
   "dependencies": {
+    "@noble/ed25519": "^3.1.0",
+    "@number0/iroh": "^0.35.0",
+    "@windwalker-io/srp": "^1.0.1",
+    "cbor2": "^2.3.0",
     "electron-store": "^8.0.0",
-    "electron-updater": "^6.3.0"
+    "electron-updater": "^6.3.0",
+    "rfc4648": "^1.5.4"
   },
   "devDependencies": {
     "electron": "^33.0.0",
