@@ -74,7 +74,7 @@ export default function InstallMcpScreen() {
   const [suggestedName, setSuggestedName] = useState<string | null>(null);
 
   useEffect(() => {
-    if (config) setBaseUrl(config.host, config.port);
+    if (config) if (config.sidecarPort) setBaseUrl('127.0.0.1', config.sidecarPort);
   }, [config]);
 
   const load = useCallback(async () => {

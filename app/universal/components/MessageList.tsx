@@ -126,7 +126,6 @@ function AttachmentView({
       : attachment.type === 'video'
         ? 'film'
         : 'file';
-  const token = useConnection((s) => s.config?.token);
   const chipInner = (
     <>
       <Feather name={iconName as any} size={11} color={colors.textSecondary} />
@@ -144,7 +143,7 @@ function AttachmentView({
       style={styles.attachmentChip}
       onPress={async () => {
         try {
-          await downloadFile(attachment.path, attachment.filename, token);
+          await downloadFile(attachment.path, attachment.filename);
         } catch (e) {
           console.error('Download failed:', e);
         }

@@ -154,7 +154,7 @@ export default function SystemScreen() {
 
   useEffect(() => {
     if (!connConfig) return;
-    setBaseUrl(connConfig.host, connConfig.port);
+    if (connConfig.sidecarPort) setBaseUrl('127.0.0.1', connConfig.sidecarPort);
     void startFeed();
     // No teardown — the store stays bound across screen mounts so
     // returning here doesn't reset the feed. The connection store

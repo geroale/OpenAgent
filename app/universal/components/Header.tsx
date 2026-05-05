@@ -30,17 +30,22 @@ export default function Header() {
 
   const {
     accounts, activeAccountId, isConnected, agentName,
-    switchAccount, removeAccount,
+    disconnect, removeAccount,
   } = useConnection();
 
   const activeAccount = accounts.find((a) => a.id === activeAccountId);
   const displayName = activeAccount?.name || agentName || 'Not Connected';
 
-  const handleSwitch = (id: string) => {
+  const handleSwitch = async (id: string) => {
     setDropdownOpen(false);
     if (id !== activeAccountId) {
-      switchAccount(id);
-      router.replace('/(tabs)/chat');
+      // Switching networks requires re-prompting for the password
+      // (the cert may need refresh) — bounce through the login screen
+      // so the user enters credentials cleanly. The login screen
+      // remembers the selected account. Await the disconnect so the
+      // login screen mounts with ``isConnected: false``.
+      await disconnect();
+      router.replace('/');
     }
   };
 
@@ -52,16 +57,24 @@ export default function Header() {
     });
     if (!confirmed) return;
 
-    removeAccount(id);
     setDropdownOpen(false);
     if (id === activeAccountId) {
+      // Same reason as handleSwitch: await before navigating so the
+      // login screen never sees a stale ``isConnected: true``.
+      await removeAccount(id);
       router.replace('/');
+    } else {
+      void removeAccount(id);
     }
   };
 
-  const handleAdd = () => {
+  const handleAdd = async () => {
     setDropdownOpen(false);
-    useConnection.getState().disconnect();
+    // Await the disconnect so the login screen mounts AFTER
+    // ``isConnected`` has flipped to false. Otherwise its
+    // auto-redirect effect can re-fire and bounce the user back to
+    // the chat tab, landing on an empty session.
+    await useConnection.getState().disconnect();
     router.replace('/');
   };
 
@@ -152,7 +165,7 @@ export default function Header() {
                   />
                   <View style={styles.dropdownInfo}>
                     <Text style={styles.dropdownName} numberOfLines={1}>{acc.name}</Text>
-                    <Text style={styles.dropdownHost}>{acc.host}:{acc.port}</Text>
+                    <Text style={styles.dropdownHost}>{acc.handle}@{acc.network}</Text>
                   </View>
                 </TouchableOpacity>
                 <TouchableOpacity

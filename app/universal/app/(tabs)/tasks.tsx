@@ -46,7 +46,7 @@ export default function TasksScreen() {
 
   useEffect(() => {
     if (connConfig) {
-      setBaseUrl(connConfig.host, connConfig.port);
+      if (connConfig.sidecarPort) setBaseUrl('127.0.0.1', connConfig.sidecarPort);
       loadTasks();
     }
   }, [connConfig]);

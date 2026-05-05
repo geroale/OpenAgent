@@ -27,7 +27,7 @@ export default function MemoryGraphScreen() {
 
   useEffect(() => {
     if (config) {
-      setBaseUrl(config.host, config.port);
+      if (config.sidecarPort) setBaseUrl('127.0.0.1', config.sidecarPort);
       loadNotes();
       loadGraph();
     }

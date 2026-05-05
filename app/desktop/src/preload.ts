@@ -39,4 +39,26 @@ contextBridge.exposeInMainWorld('desktop', {
   // fullscreen with no traffic-lights, so the in-app close button uses this
   // to exit. (Cmd+Q / Alt+F4 still work too.)
   quit: (): Promise<void> => ipcRenderer.invoke('app:quit'),
+
+  // ── Network loopback (Iroh transport bridge) ──
+  // Spawns / stops a ``openagent network loopback`` child process that
+  // bridges localhost ↔ Iroh for one account. Returns the bound port
+  // the renderer should hit for HTTP / WS. The password is sent over
+  // IPC + stdin and is NEVER persisted by the main process.
+  // Either form works:
+  //   - ``{ ticket }`` for first-time joins (paste the oa1… string)
+  //   - ``{ handle, network }`` for re-logins to a saved account
+  // ``handle`` is also passed alongside a role=user ticket so the new
+  // user picks their own handle on registration.
+  startLoopback: (args: {
+    accountId: string;
+    password: string;
+    ticket?: string;
+    handle?: string;
+    network?: string;
+    agent?: string;
+  }): Promise<number> => ipcRenderer.invoke('loopback:start', args),
+
+  stopLoopback: (args: { accountId: string }): Promise<void> =>
+    ipcRenderer.invoke('loopback:stop', args),
 });

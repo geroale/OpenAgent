@@ -11,6 +11,7 @@ import * as path from 'path';
 import * as fs from 'fs';
 import * as http from 'http';
 import { registerStorageHandlers } from './services/storage';
+import { registerLoopbackHandlers, stopAllLoopbacks } from './services/loopback';
 
 const IMAGE_EXTS = new Set(['.png', '.jpg', '.jpeg', '.gif', '.webp', '.bmp', '.heic', '.tiff']);
 
@@ -260,6 +261,7 @@ function setupAutoUpdater(): void {
 app.whenReady().then(async () => {
   registerStorageHandlers();
   registerDialogHandlers();
+  registerLoopbackHandlers();
 
   // Renderer-initiated quit. The window is locked in kiosk fullscreen with no
   // traffic-lights, so we expose an IPC the in-app close button can call.
@@ -279,9 +281,14 @@ app.whenReady().then(async () => {
 
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {
+    stopAllLoopbacks();
     if (staticServer) staticServer.close();
     app.quit();
   }
+});
+
+app.on('before-quit', () => {
+  stopAllLoopbacks();
 });
 
 app.on('activate', () => {

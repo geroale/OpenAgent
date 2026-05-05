@@ -6,7 +6,11 @@
 // ── WebSocket Protocol ──
 
 export type ClientMessage =
-  | { type: 'auth'; token: string; client_id?: string }
+  // Legacy AUTH frame: ignored by the gateway (auth is enforced at the
+  // Iroh transport layer via the device cert), but we keep sending one
+  // for back-compat with code that waits for AUTH_OK as a "ready"
+  // signal. ``token`` is no longer required.
+  | { type: 'auth'; token?: string; client_id?: string }
   // ``input_was_voice``: true when the user just spoke (mic + ASR via
   // /api/upload). The gateway responds via the streaming TTS pipeline
   // when a TTS provider is configured, falling through to text-only
@@ -298,18 +302,43 @@ export interface SystemProcess {
 }
 
 // ── Connection ──
+//
+// The legacy {host, port, token} shape is gone. Connections are now
+// addressed by ``handle@network`` and authenticated via a device cert
+// minted by the network's coordinator. The Electron main process runs
+// a ``openagent network loopback`` child for each active account; that
+// child binds a localhost port that proxies HTTP/WS traffic onto the
+// Iroh transport. The renderer keeps using ``fetch`` / ``WebSocket``
+// against ``localhost:<sidecarPort>``.
+//
+// First-time onboarding only needs: a ticket string + (for user-role
+// tickets) a chosen handle + a password. Coordinator NodeId, network
+// name, network ID, and invite code are all packed into the ticket.
 
 export interface ConnectionConfig {
-  name: string;
-  host: string;
-  port: number;
-  token: string;
-  isLocal: boolean;
+  name: string;                  // display label (e.g. "Personal")
+  network: string;               // network short name (e.g. "homelab")
+  handle: string;                // user handle within that network
+  agentHandle?: string;          // active agent (default: first registered)
+  // Set by the Electron main process after it spawns the loopback
+  // sidecar — the renderer never picks this; it just hits the URL.
+  sidecarPort?: number;
+  isLocal: boolean;              // hint: same-machine vs. remote agent
 }
 
 export interface SavedAccount extends ConnectionConfig {
   id: string;          // unique identifier
   createdAt: number;   // epoch ms
+}
+
+// Inputs the onboarding screen collects to add a new account. The
+// renderer doesn't see coordinator NodeIds or network IDs — those
+// come from the ticket and are pinned by the loopback child.
+export interface JoinNetworkInput {
+  ticket: string;     // pasted oa1… string from `openagent network invite`
+  handle: string;     // user-chosen for role=user; ignored for role=device
+  password: string;   // PAKE secret, sent over IPC+stdin only
+  displayName?: string; // optional friendly label saved on the account row
 }
 
 // ── Config ──

@@ -281,13 +281,12 @@ export async function uploadFile(
  * and the client needs to fetch it (remote install) or just link to
  * it (desktop w/ local gateway).
  *
- * The gateway token, if configured, is passed via ``?token=`` so the
- * URL works in plain browser anchors / `<img src>` / webviews that
- * can't set custom headers.
+ * Auth is enforced by the loopback sidecar's Iroh transport — the
+ * URL doesn't need a token query param. The legacy ``token`` argument
+ * is preserved for callers that still pass it; it's ignored.
  */
-export function fileUrl(path: string, token?: string): string {
+export function fileUrl(path: string, _token?: string): string {
   const params = new URLSearchParams({ path });
-  if (token) params.set('token', token);
   return `${baseUrl}/api/files?${params.toString()}`;
 }
 
@@ -297,8 +296,8 @@ export function fileUrl(path: string, token?: string): string {
  * would need Expo FileSystem — not used today since the desktop app
  * is the primary target.
  */
-export async function downloadFile(path: string, filename: string, token?: string): Promise<void> {
-  const res = await fetch(fileUrl(path, token));
+export async function downloadFile(path: string, filename: string, _token?: string): Promise<void> {
+  const res = await fetch(fileUrl(path));
   if (!res.ok) throw new Error(`Download failed: ${res.status}`);
   const blob = await res.blob();
   const objectUrl = URL.createObjectURL(blob);

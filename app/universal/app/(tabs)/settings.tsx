@@ -14,7 +14,7 @@ import { useRouter } from 'expo-router';
 import { useConnection } from '../../stores/connection';
 import { useConfig } from '../../stores/config';
 import { useVoiceConfig, VOICE_DEFAULTS, VOICE_LANGUAGES, type VoiceConfig } from '../../stores/voice';
-import { setBaseUrl, triggerUpdate, triggerRestart } from '../../services/api';
+import { triggerUpdate, triggerRestart } from '../../services/api';
 import { useConfirm } from '../../components/ConfirmDialog';
 import Button from '../../components/Button';
 import Card from '../../components/Card';
@@ -49,10 +49,13 @@ const CATEGORIES: Category[] = [
   { id: 'manager_review', label: 'Manager Review', icon: 'clipboard', description: 'Weekly self-review' },
   { id: 'auto_update', label: 'Auto-Update', icon: 'refresh-cw', description: 'Release check cadence' },
   { id: 'controls', label: 'Controls', icon: 'sliders', description: 'Update and restart' },
-  { id: 'connection', label: 'Connection', icon: 'link', description: 'Account and host' },
+  { id: 'connection', label: 'Connection', icon: 'link', description: 'Network and identity' },
 ];
 
-type ChannelTab = 'gateway' | 'telegram' | 'discord' | 'whatsapp';
+// The "gateway" channel tab is gone — gateway transport is now Iroh
+// + handle@network credentials. Gateway state is read-only and shown
+// inside the Connection screen.
+type ChannelTab = 'telegram' | 'discord' | 'whatsapp';
 
 interface ChannelTabSpec {
   id: ChannelTab;
@@ -61,7 +64,6 @@ interface ChannelTabSpec {
 }
 
 const CHANNEL_TABS: ChannelTabSpec[] = [
-  { id: 'gateway', label: 'Gateway', icon: 'wifi' },
   { id: 'telegram', label: 'Telegram', icon: 'send' },
   { id: 'discord', label: 'Discord', icon: 'message-square' },
   { id: 'whatsapp', label: 'WhatsApp', icon: 'phone' },
@@ -80,7 +82,7 @@ export default function SettingsScreen() {
   // Active category (drives what's rendered in the main area)
   const [activeCategory, setActiveCategory] = useState<CategoryId>('identity');
   // Active sub-tab inside the Channels screen
-  const [activeChannelTab, setActiveChannelTab] = useState<ChannelTab>('gateway');
+  const [activeChannelTab, setActiveChannelTab] = useState<ChannelTab>('telegram');
 
   // Local form state
   const [name, setName] = useState('');
@@ -92,11 +94,6 @@ export default function SettingsScreen() {
   const [autoUpdateEnabled, setAutoUpdateEnabled] = useState(false);
   const [autoUpdateMode, setAutoUpdateMode] = useState('auto');
   const [autoUpdateInterval, setAutoUpdateInterval] = useState('17 */6 * * *');
-
-  // Gateway (app/CLI websocket) state
-  const [gwHost, setGwHost] = useState('0.0.0.0');
-  const [gwPort, setGwPort] = useState('8765');
-  const [gwToken, setGwToken] = useState('');
 
   // Channel state
   const [tgToken, setTgToken] = useState('');
@@ -113,8 +110,10 @@ export default function SettingsScreen() {
   const [saved, setSaved] = useState<string | null>(null);
 
   useEffect(() => {
+    // The connection store points ``setBaseUrl`` at the loopback
+    // sidecar when the connection is established; we just trigger a
+    // config fetch whenever a new config object lands.
     if (connConfig) {
-      setBaseUrl(connConfig.host, connConfig.port);
       loadConfig();
     }
   }, [connConfig]);
@@ -133,10 +132,6 @@ export default function SettingsScreen() {
 
     // Channels
     const ch = agentConfig.channels || {};
-    const ws = ch.websocket || {};
-    setGwHost(ws.host || '0.0.0.0');
-    setGwPort(ws.port != null ? String(ws.port) : '8765');
-    setGwToken(ws.token || '');
     const tg = ch.telegram || {};
     setTgToken(tg.token || '');
     setTgUsers((tg.allowed_users || []).join(', '));
@@ -164,18 +159,6 @@ export default function SettingsScreen() {
   // config and only mutates its own key — unsaved edits to other panels are NOT
   // committed. The form state for other channels is only flushed when that
   // specific panel's Save button is pressed.
-
-  const saveGateway = async () => {
-    const channels: any = { ...(agentConfig?.channels || {}) };
-    const port = parseInt(gwPort, 10);
-    const ws: any = {
-      host: gwHost.trim() || '0.0.0.0',
-      port: Number.isFinite(port) && port > 0 ? port : 8765,
-    };
-    if (gwToken.trim()) ws.token = gwToken.trim();
-    channels.websocket = ws;
-    await saveSection('channels', channels, 'gateway');
-  };
 
   const saveTelegram = async () => {
     const channels: any = { ...(agentConfig?.channels || {}) };
@@ -279,28 +262,6 @@ export default function SettingsScreen() {
   // Each sub-panel is shown in isolation under the Channels screen; the
   // sub-tab strip switches between Gateway/Telegram/Discord/WhatsApp.
 
-  const renderGatewayPanel = () => (
-    <Card>
-      <Text style={styles.channelSubtitle}>
-        Websocket endpoint used by the OpenAgent app and CLI to talk to this agent.
-      </Text>
-
-      <Text style={[styles.label, { marginTop: 8 }]}>Host</Text>
-      <TextInput style={styles.input} value={gwHost} onChangeText={setGwHost} placeholder="0.0.0.0" placeholderTextColor={colors.textMuted} autoCapitalize="none" />
-      <Text style={[styles.label, { marginTop: 8 }]}>Port</Text>
-      <TextInput style={styles.input} value={gwPort} onChangeText={setGwPort} placeholder="8765" placeholderTextColor={colors.textMuted} keyboardType="numeric" />
-      <Text style={[styles.label, { marginTop: 8 }]}>Auth Token</Text>
-      <TextInput style={styles.input} value={gwToken} onChangeText={setGwToken} placeholder="${OPENAGENT_WS_TOKEN}" placeholderTextColor={colors.textMuted} secureTextEntry />
-      <Text style={styles.channelHint}>
-        Leave blank to use the OPENAGENT_WS_TOKEN environment variable. The token must match the one saved in the client's
-        account entry.
-      </Text>
-
-      <SaveBtn label="Save Gateway" saved={saved === 'gateway'} onPress={saveGateway} />
-      <Text style={styles.restartHint}>Restart required after changes</Text>
-    </Card>
-  );
-
   const renderTelegramPanel = () => (
     <Card>
       <Text style={styles.label}>Bot Token</Text>
@@ -360,7 +321,6 @@ export default function SettingsScreen() {
         style={{ marginBottom: 12 }}
       />
 
-      {activeChannelTab === 'gateway' && renderGatewayPanel()}
       {activeChannelTab === 'telegram' && renderTelegramPanel()}
       {activeChannelTab === 'discord' && renderDiscordPanel()}
       {activeChannelTab === 'whatsapp' && renderWhatsappPanel()}
@@ -571,10 +531,15 @@ export default function SettingsScreen() {
     <>
       <Text style={styles.sectionTitle}>Connection</Text>
       <Card>
-        <Row label="Account" value={activeAccount?.name || '—'} />
+        <Row label="Network" value={activeAccount ? activeAccount.network : '—'} mono />
+        <Row label="Handle" value={activeAccount ? activeAccount.handle : '—'} mono />
         <Row label="Agent" value={agentName || '—'} />
         <Row label="Version" value={agentVersion || '—'} />
-        <Row label="Host" value={connConfig ? `${connConfig.host}:${connConfig.port}` : '—'} />
+        <Row
+          label="Loopback port"
+          value={connConfig?.sidecarPort ? String(connConfig.sidecarPort) : '—'}
+          mono
+        />
       </Card>
 
       <Button
@@ -587,7 +552,7 @@ export default function SettingsScreen() {
       {activeAccountId && (
         <Button
           variant="danger"
-          label="Remove Account"
+          label="Forget network"
           fullWidth
           onPress={() => { void handleRemove(); }}
           style={{ marginTop: 8 }}
@@ -650,11 +615,13 @@ function SaveBtn({ label, saved, onPress }: { label: string; saved: boolean; onP
   );
 }
 
-function Row({ label, value }: { label: string; value: string }) {
+function Row({ label, value, mono }: { label: string; value: string; mono?: boolean }) {
   return (
     <View style={styles.row}>
       <Text style={styles.rowLabel}>{label}</Text>
-      <Text style={styles.rowValue}>{value}</Text>
+      <Text style={[styles.rowValue, mono && { fontFamily: font.mono, fontSize: 12 }]}>
+        {value}
+      </Text>
     </View>
   );
 }

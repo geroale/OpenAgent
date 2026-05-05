@@ -55,7 +55,7 @@ export default function EditMcpScreen() {
   const [removing, setRemoving] = useState(false);
 
   useEffect(() => {
-    if (config) setBaseUrl(config.host, config.port);
+    if (config) if (config.sidecarPort) setBaseUrl('127.0.0.1', config.sidecarPort);
   }, [config]);
 
   const load = useCallback(async () => {

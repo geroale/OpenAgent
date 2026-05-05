@@ -31,9 +31,12 @@ export class OpenAgentWS {
   private static MAX_PENDING = 200;
   private authed = false;
 
-  constructor(url: string, token: string) {
+  constructor(url: string, token?: string) {
     this.url = url;
-    this.token = token;
+    // Auth is enforced by the loopback sidecar transport; the legacy
+    // token field is preserved so the AUTH frame still parses on the
+    // server side, but it can be omitted (default empty string).
+    this.token = token ?? '';
   }
 
   connect(): void {
