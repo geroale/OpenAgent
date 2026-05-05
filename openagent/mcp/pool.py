@@ -81,6 +81,34 @@ _MCP_CONNECT_TIMEOUT = 30
 # subprocess that ignores SIGTERM could otherwise pin the whole shutdown.
 _MCP_CLOSE_TIMEOUT = 5
 
+# Dormant-MCP recovery, for the "stealth-fail" handshake mode.
+#
+# Agno's ``MCPTools.initialize()`` (≤ v2.6.4) wraps the actual init in
+# ``except (RuntimeError, BaseException): log_error(...)``. When the wrapped
+# ``session.initialize()`` / ``build_tools()`` calls raise — typically
+# because anyio's TaskGroup surfaces a ``BaseExceptionGroup`` from a
+# concurrently-cancelled subprocess scope on a busy host — Agno swallows
+# the error, leaves ``_initialized = False``, returns from ``__aenter__``
+# normally, and reports zero tools. The pool sees a "successful" enter
+# with ``functions == {}`` and marks the MCP dormant for the rest of the
+# session even though the subprocess is healthy and a second handshake
+# would succeed.
+#
+# Field evidence (mixout-agent, 2026-05-05): on a freshly-restarted
+# persona with 20 MCPs configured, 16 came up with 0 tools — every
+# subprocess MCP except the four cheapest cold-starts. A manual restart
+# of the affected agent recovered them in <2s each. Pattern is "TaskGroup
+# under load", not "MCP fundamentally broken".
+#
+# Mitigation: when the count comes back zero on a successfully-entered
+# toolkit, retry ``toolkit.initialize()`` directly a few times with light
+# backoff before giving up. The retry is idempotent on Agno's side
+# (``if self._initialized: return``), and bounded so a permanently-broken
+# MCP still dormants out within a handful of seconds.
+_DORMANT_RECOVERY_ATTEMPTS = 3
+_DORMANT_RECOVERY_TIMEOUT = 15
+_DORMANT_RECOVERY_BACKOFF = 0.5
+
 
 def _safe_prefix(name: str) -> str:
     """Coerce a server name into a valid Python identifier prefix.
@@ -508,6 +536,12 @@ class MCPPool:
                     # Agno MCPTools.functions is the dict of registered tools
                     # (populated during MCPTools.initialize()).
                     count = len(getattr(toolkit, "functions", {}) or {})
+                    if count == 0:
+                        # Stealth-fail recovery — see _DORMANT_RECOVERY_ATTEMPTS
+                        # docstring above. The subprocess is alive (we entered
+                        # the stack); Agno just lost the init result. Retrying
+                        # ``initialize()`` directly is cheap and usually wins.
+                        count = await self._recover_dormant_toolkit(toolkit, spec)
                     self._tool_counts[spec.name] = count
                     elog("mcp.connect", name=spec.name, tools=count)
                     if count == 0:
@@ -767,6 +801,64 @@ class MCPPool:
             _ToolkitSupervisor(name=spec.name, task=sup_task, stop_event=stop_event)
         )
         return toolkit
+
+    async def _recover_dormant_toolkit(
+        self, toolkit: Any, spec: _ServerSpec,
+    ) -> int:
+        """Re-run ``toolkit.initialize()`` against a stealth-failed handshake.
+
+        Returns the resulting tool count. The toolkit may not even expose
+        an ``initialize`` coroutine (in-process Toolkits, future Agno
+        rewrites) — in that case we fall through and report whatever count
+        is already there.
+
+        We deliberately attempt initialise on the SAME task that
+        ``__aenter__`` ran on (the supervisor task) is irrelevant here,
+        because ``initialize()`` does not touch anyio cancel scopes —
+        it only re-runs ``session.initialize()`` and ``build_tools()``,
+        both of which are safe to retry from any task once the session
+        has been opened. The anyio invariant only applies to the cancel
+        scope opened by ``stdio_client.__aenter__``, which we never re-enter.
+        """
+        initialize = getattr(toolkit, "initialize", None)
+        if not callable(initialize):
+            return len(getattr(toolkit, "functions", {}) or {})
+
+        for attempt in range(1, _DORMANT_RECOVERY_ATTEMPTS + 1):
+            # Force Agno to actually re-run init — it short-circuits on
+            # ``self._initialized`` even when the previous attempt left
+            # ``functions`` empty.
+            try:
+                toolkit._initialized = False  # type: ignore[attr-defined]
+            except Exception:  # noqa: BLE001 — best-effort, attribute may not exist
+                pass
+            try:
+                async with asyncio.timeout(_DORMANT_RECOVERY_TIMEOUT):
+                    result = initialize()
+                    if inspect.isawaitable(result):
+                        await result
+            except (asyncio.TimeoutError, Exception) as e:  # noqa: BLE001
+                # ``log_error`` inside Agno may have already eaten the real
+                # cause; capture our wrapper's view and keep going.
+                elog(
+                    "mcp.recovery_failed",
+                    level="warning",
+                    name=spec.name,
+                    attempt=attempt,
+                    error=str(e),
+                )
+            count = len(getattr(toolkit, "functions", {}) or {})
+            if count > 0:
+                elog(
+                    "mcp.recovery_succeeded",
+                    name=spec.name,
+                    attempt=attempt,
+                    tools=count,
+                )
+                return count
+            if attempt < _DORMANT_RECOVERY_ATTEMPTS:
+                await asyncio.sleep(_DORMANT_RECOVERY_BACKOFF * attempt)
+        return 0
 
     async def _build_and_enter_toolkit(self, spec: _ServerSpec) -> Any | None:
         """Construct an Agno ``MCPTools`` for one spec, enter it, return it.
