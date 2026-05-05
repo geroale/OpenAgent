@@ -41,10 +41,11 @@ contextBridge.exposeInMainWorld('desktop', {
   quit: (): Promise<void> => ipcRenderer.invoke('app:quit'),
 
   // ── Network loopback (Iroh transport bridge) ──
-  // Spawns / stops a ``openagent network loopback`` child process that
-  // bridges localhost ↔ Iroh for one account. Returns the bound port
-  // the renderer should hit for HTTP / WS. The password is sent over
-  // IPC + stdin and is NEVER persisted by the main process.
+  // Brings up an in-process iroh node + localhost proxy for one
+  // account; the renderer hits the returned port over plain HTTP/WS.
+  // The password is sent over IPC and is NEVER persisted by the main
+  // process — used only to derive the SRP-6a verifier with the
+  // coordinator, then discarded.
   // Either form works:
   //   - ``{ ticket }`` for first-time joins (paste the oa1… string)
   //   - ``{ handle, network }`` for re-logins to a saved account
