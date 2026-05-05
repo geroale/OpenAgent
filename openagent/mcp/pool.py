@@ -110,6 +110,56 @@ _DORMANT_RECOVERY_TIMEOUT = 15
 _DORMANT_RECOVERY_BACKOFF = 0.5
 
 
+def _install_agno_log_passthrough() -> None:
+    """Re-emit Agno's ``log_error()`` messages through ``elog``.
+
+    Agno's ``MCPTools.initialize()`` catches every exception and calls
+    ``log_error("Failed to initialize MCP toolkit")`` — *without*
+    ``exc_info``, so even at DEBUG you only see the string, not the
+    underlying cause. The bypass path in ``_recover_dormant_toolkit``
+    surfaces the real exception on retry; this handler closes the
+    gap for the *first* attempt by routing the swallowed log line
+    through our event stream, where ops can grep ``agno.log_capture``
+    to confirm the stealth-fail is happening (vs. some other zero-
+    tools cause).
+
+    Idempotent: only attaches one passthrough handler per process.
+    """
+    agno_logger = logging.getLogger("agno")
+
+    class _AgnoPassthrough(logging.Handler):
+        def emit(self, record: logging.LogRecord) -> None:
+            try:
+                msg = record.getMessage()
+                # Filter to MCP-related ERROR/WARNING noise; we don't
+                # want to mirror every Agno log line into events.jsonl.
+                if record.levelno < logging.WARNING:
+                    return
+                if "mcp" not in msg.lower() and "MCP" not in record.name:
+                    return
+                elog(
+                    "agno.log_capture",
+                    level="warning",
+                    logger=record.name,
+                    levelname=record.levelname,
+                    message=msg[:500],
+                )
+            except Exception:  # noqa: BLE001 — handler must never raise
+                pass
+
+    if not any(isinstance(h, _AgnoPassthrough) for h in agno_logger.handlers):
+        agno_logger.addHandler(_AgnoPassthrough())
+        # Don't block propagation — just observe.
+        agno_logger.setLevel(min(agno_logger.level or logging.WARNING, logging.WARNING))
+
+
+# Install the passthrough at module import so it's active before any
+# pool is built. Cheap (one handler registration), safe (idempotent),
+# and the only way to see Agno's first-attempt log line without
+# modifying Agno itself.
+_install_agno_log_passthrough()
+
+
 def _safe_prefix(name: str) -> str:
     """Coerce a server name into a valid Python identifier prefix.
 
@@ -805,48 +855,89 @@ class MCPPool:
     async def _recover_dormant_toolkit(
         self, toolkit: Any, spec: _ServerSpec,
     ) -> int:
-        """Re-run ``toolkit.initialize()`` against a stealth-failed handshake.
+        """Re-run init against a stealth-failed handshake AND surface the
+        real exception that Agno's blanket ``except (RuntimeError,
+        BaseException): log_error(...)`` would otherwise eat.
 
-        Returns the resulting tool count. The toolkit may not even expose
-        an ``initialize`` coroutine (in-process Toolkits, future Agno
-        rewrites) — in that case we fall through and report whatever count
-        is already there.
+        Two paths, picked by introspection so this still works on Agno
+        rewrites and on in-process Toolkits:
 
-        We deliberately attempt initialise on the SAME task that
-        ``__aenter__`` ran on (the supervisor task) is irrelevant here,
-        because ``initialize()`` does not touch anyio cancel scopes —
-        it only re-runs ``session.initialize()`` and ``build_tools()``,
-        both of which are safe to retry from any task once the session
-        has been opened. The anyio invariant only applies to the cancel
-        scope opened by ``stdio_client.__aenter__``, which we never re-enter.
+        1. **Bypass path (preferred)** — when the toolkit looks like
+           Agno's ``MCPTools`` (has ``session`` + ``build_tools``), we
+           skip ``initialize()`` and call its two underlying coroutines
+           directly: ``session.initialize()`` then ``build_tools()``.
+           Identical work to what Agno's init does, but WITHOUT the
+           blanket-except, so the real exception propagates and we can
+           log type, message, and traceback. The ``phase`` field tells
+           ops which step blew up — ``session.initialize`` (handshake
+           with the subprocess) vs ``build_tools`` (parsing the tool
+           catalogue) — which is the diagnostic we don't currently have.
+        2. **Fallback path** — for toolkits we don't recognise, just
+           call ``initialize()``. Same behaviour as before; we still
+           catch and log so a permanently-broken MCP eventually dormants.
+
+        ``initialize()`` and the two underlying coroutines do NOT touch
+        the anyio cancel scope opened by ``stdio_client.__aenter__``
+        (only ``__aexit__`` does). So calling them from this task —
+        which is NOT the supervisor task — is safe; the scope stays
+        owned end-to-end by the supervisor.
+
+        Returns the tool count after recovery (zero if all retries
+        failed). Recovery telemetry is emitted as ``mcp.recovery_failed``
+        / ``mcp.recovery_succeeded`` with enough fields to root-cause
+        the next incident — see the PR description for the bug history.
         """
+        # Detect the bypass path. We test for callable methods, not for
+        # the MCPTools class, so a future Agno rewrite that keeps the
+        # same shape still works.
+        session = getattr(toolkit, "session", None)
+        build_tools = getattr(toolkit, "build_tools", None)
+        bypass_available = (
+            session is not None
+            and callable(getattr(session, "initialize", None))
+            and callable(build_tools)
+        )
         initialize = getattr(toolkit, "initialize", None)
-        if not callable(initialize):
+        if not bypass_available and not callable(initialize):
+            # Nothing we can do — toolkit doesn't expose a re-init path.
             return len(getattr(toolkit, "functions", {}) or {})
 
         for attempt in range(1, _DORMANT_RECOVERY_ATTEMPTS + 1):
-            # Force Agno to actually re-run init — it short-circuits on
-            # ``self._initialized`` even when the previous attempt left
-            # ``functions`` empty.
+            # Reset Agno's idempotency flag: ``initialize()`` short-circuits
+            # on ``self._initialized``, even when the previous attempt
+            # left ``functions`` empty. Best-effort — the attribute may
+            # not exist on non-Agno toolkits.
             try:
                 toolkit._initialized = False  # type: ignore[attr-defined]
-            except Exception:  # noqa: BLE001 — best-effort, attribute may not exist
+            except Exception:  # noqa: BLE001
                 pass
+
+            phase: str | None = None
+            err: BaseException | None = None
             try:
                 async with asyncio.timeout(_DORMANT_RECOVERY_TIMEOUT):
-                    result = initialize()
-                    if inspect.isawaitable(result):
-                        await result
-            except (asyncio.TimeoutError, Exception) as e:  # noqa: BLE001
-                # ``log_error`` inside Agno may have already eaten the real
-                # cause; capture our wrapper's view and keep going.
-                elog(
-                    "mcp.recovery_failed",
-                    level="warning",
-                    name=spec.name,
-                    attempt=attempt,
-                    error=str(e),
-                )
+                    if bypass_available:
+                        # Bypass Agno's blanket-except so the real error
+                        # surfaces. ``session.initialize`` is the MCP
+                        # protocol-level handshake (initialize/initialized
+                        # message exchange); ``build_tools`` lists tools
+                        # and constructs Agno Function wrappers.
+                        phase = "session.initialize"
+                        await session.initialize()
+                        phase = "build_tools"
+                        await build_tools()
+                        try:
+                            toolkit._initialized = True  # type: ignore[attr-defined]
+                        except Exception:  # noqa: BLE001
+                            pass
+                    else:
+                        phase = "initialize"
+                        result = initialize()  # type: ignore[misc]
+                        if inspect.isawaitable(result):
+                            await result
+            except BaseException as e:  # noqa: BLE001 — we want EVERYTHING
+                err = e
+
             count = len(getattr(toolkit, "functions", {}) or {})
             if count > 0:
                 elog(
@@ -854,10 +945,67 @@ class MCPPool:
                     name=spec.name,
                     attempt=attempt,
                     tools=count,
+                    phase=phase,
+                    bypassed_agno_swallow=bypass_available,
                 )
                 return count
+
+            # Recovery attempt failed — log with full diagnostic context.
+            # ``error_type`` is what we actually need to root-cause:
+            # BaseExceptionGroup vs CancelledError vs ConnectionError
+            # vs ValueError each point at a different class of bug.
+            if err is not None:
+                # Pull a short traceback summary — full traceback is too
+                # noisy for elog but the last frame usually identifies
+                # the failing call (e.g. anyio TaskGroup vs mcp.session).
+                import traceback as _tb
+                tb_summary = "".join(
+                    _tb.format_exception(type(err), err, err.__traceback__)
+                )[-1500:]
+                # If it's an ExceptionGroup, also unpack inner errors —
+                # those are where the real anyio cancel-scope failures
+                # live, hidden under a generic group wrapper.
+                inner_types: list[str] = []
+                inner_msgs: list[str] = []
+                exceptions = getattr(err, "exceptions", None)
+                if exceptions:
+                    for sub in exceptions[:5]:
+                        inner_types.append(type(sub).__name__)
+                        inner_msgs.append(str(sub)[:200])
+                elog(
+                    "mcp.recovery_failed",
+                    level="warning",
+                    name=spec.name,
+                    attempt=attempt,
+                    phase=phase,
+                    error_type=type(err).__name__,
+                    error=str(err)[:500],
+                    traceback=tb_summary,
+                    inner_types=inner_types or None,
+                    inner_msgs=inner_msgs or None,
+                    bypassed_agno_swallow=bypass_available,
+                )
+            else:
+                # No exception but functions still empty — Agno's
+                # blanket-except triggered on the fallback path and
+                # we genuinely have no signal. Log so ops can grep
+                # for this case and bump up Agno's logger to DEBUG.
+                elog(
+                    "mcp.recovery_silent_fail",
+                    level="warning",
+                    name=spec.name,
+                    attempt=attempt,
+                    phase=phase,
+                    note=(
+                        "Agno swallowed the init exception; enable "
+                        "logger 'agno' at DEBUG for the underlying "
+                        "log_error message"
+                    ),
+                )
+
             if attempt < _DORMANT_RECOVERY_ATTEMPTS:
                 await asyncio.sleep(_DORMANT_RECOVERY_BACKOFF * attempt)
+
         return 0
 
     async def _build_and_enter_toolkit(self, spec: _ServerSpec) -> Any | None:
