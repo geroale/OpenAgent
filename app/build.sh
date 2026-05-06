@@ -72,6 +72,10 @@ build_desktop() {
     fi
 
     echo "📦 Packaging Electron app ($TARGET)..."
+    # Compile + bundle ESM-only deps (@noble/ed25519, cbor2) into a CJS
+    # bundle so Electron's require() loader can read them at startup.
+    npx tsc
+    node ./scripts/bundle-main.js
     # ${arr[@]+"${arr[@]}"} expands to nothing when empty (bash 3.2-safe under `set -u`)
     npx electron-builder "$TARGET" ${BUILDER_FLAGS[@]+"${BUILDER_FLAGS[@]}"}
     echo ""

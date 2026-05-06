@@ -13,10 +13,10 @@
   "main": "dist/main.js",
   "scripts": {
     "dev": "tsc && electron .",
-    "build": "tsc && electron-builder",
-    "build:mac": "tsc && electron-builder --mac",
-    "build:win": "tsc && electron-builder --win",
-    "build:linux": "tsc && electron-builder --linux",
+    "build": "tsc && node ./scripts/bundle-main.js && electron-builder",
+    "build:mac": "tsc && node ./scripts/bundle-main.js && electron-builder --mac",
+    "build:win": "tsc && node ./scripts/bundle-main.js && electron-builder --win",
+    "build:linux": "tsc && node ./scripts/bundle-main.js && electron-builder --linux",
     "start": "tsc && electron ."
   },
   "dependencies": {
@@ -32,6 +32,7 @@
   "devDependencies": {
     "electron": "^33.0.0",
     "electron-builder": "^25.0.0",
+    "esbuild": "^0.24.0",
     "typescript": "^5.6.0"
   },
   "build": {
