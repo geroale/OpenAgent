@@ -23,6 +23,22 @@ assert.equal(t.networkName, 'homelab');
 assert.equal(t.networkId, '550e8400-e29b-41d4-a716-446655440000');
 assert.equal(t.role, 'user');
 assert.equal(t.bindTo, 'alice');
+// Old fixture has no optional address hints; decoder must surface them as undefined.
+assert.equal(t.relayUrl, undefined);
+assert.equal(t.addresses, undefined);
+
+// Extended fixture: same payload + optional addresses + relay URL.
+// Verifies the new ``relay_url``/``addresses`` CBOR fields decode and
+// stay forward-compatible with the older format above.
+const PY_TICKET_EXT = fs.readFileSync(
+  path.join(__dirname, 'ticket.fixture.extended.txt'),
+  'utf-8',
+).trim();
+const tx = decodeTicket(PY_TICKET_EXT);
+assert.equal(tx.code, 'abcd-1234');
+assert.equal(tx.coordinatorNodeId, 'c843dfbb25e9' + '0'.repeat(52));
+assert.equal(tx.relayUrl, 'https://relay.iroh.example/');
+assert.deepEqual(tx.addresses, ['127.0.0.1:11204', '[::1]:11204']);
 
 // Negative cases.
 assert.throws(() => decodeTicket('not-a-ticket'), /not an OpenAgent ticket/);

@@ -7,11 +7,29 @@ import type { ClientMessage, ServerMessage } from '../../common/types';
 
 export type MessageHandler = (msg: ServerMessage) => void;
 
+/** Why the close handler fired. ``pre_auth`` = drop before the first
+ *  ``auth_ok`` of this WS lifetime — the connection store treats it as a
+ *  "couldn't connect" failure. ``post_auth`` = transient drop in an
+ *  already-authed session (auto-reconnect kicks in). ``retries_exhausted``
+ *  = capped retry limit hit; the store should give up and surface the
+ *  error to the user. */
+export type CloseReason = 'pre_auth' | 'post_auth' | 'retries_exhausted';
+
+export type CloseHandler = (info: {
+  reason: CloseReason;
+  code: number;
+  detail?: string;
+}) => void;
+
+export type ErrorHandler = (info: { detail?: string }) => void;
+
 export class OpenAgentWS {
   private ws: WebSocket | null = null;
   private url: string;
   private token: string;
   private handlers: Set<MessageHandler> = new Set();
+  private closeHandlers: Set<CloseHandler> = new Set();
+  private errorHandlers: Set<ErrorHandler> = new Set();
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
   private shouldReconnect = true;
   // Sessions we've already ``session_open``'d on the current WS. The
@@ -29,7 +47,15 @@ export class OpenAgentWS {
   // protect against pathological reconnect loops.
   private pendingOut: string[] = [];
   private static MAX_PENDING = 200;
+  /** Per-WS-lifetime: cleared on every reconnect. */
   private authed = false;
+  /** Sticky across reconnects: true once any WS instance authed. Used to
+   *  decide whether a close should auto-reconnect (yes if we've ever
+   *  authed) or be reported as a connect-failed error (no — give up on
+   *  the first connect attempt's loop). */
+  private everAuthed = false;
+  private reconnectAttempts = 0;
+  private static MAX_RECONNECT = 3;
 
   constructor(url: string, token?: string) {
     this.url = url;
@@ -63,6 +89,8 @@ export class OpenAgentWS {
         // were CONNECTING or in the reconnect window.
         if ((msg as { type?: string }).type === 'auth_ok' && !this.authed) {
           this.authed = true;
+          this.everAuthed = true;
+          this.reconnectAttempts = 0;
           this.flushPending();
         }
         this.handlers.forEach((h) => h(msg));
@@ -74,16 +102,75 @@ export class OpenAgentWS {
     this.ws.onclose = (event) => {
       console.log(`[WS] closed: code=${event.code} reason=${event.reason}`);
       this.openedSessions.clear();
+      const wasAuthed = this.authed;
       this.authed = false;
-      if (this.shouldReconnect) {
+
+      // Pre-auth drop on the first connect attempt → surface to the
+      // store immediately (prevents the indefinite-loading bug). We
+      // still try a few reconnects in case the proxy is racing with us,
+      // but cap them so a doomed dial doesn't loop forever. Post-auth
+      // drops keep the existing gentle 3 s reconnect — those are
+      // network blips during a working session.
+      if (!this.everAuthed) {
+        const giveUp = this.reconnectAttempts >= OpenAgentWS.MAX_RECONNECT;
+        this.notifyClose({
+          reason: giveUp ? 'retries_exhausted' : 'pre_auth',
+          code: event.code,
+          detail: event.reason || undefined,
+        });
+        if (this.shouldReconnect && !giveUp) {
+          this.reconnectAttempts += 1;
+          this.reconnectTimer = setTimeout(() => this.connect(), 3000);
+        }
+        return;
+      }
+
+      // Already-authed session → keep the post-auth reconnect loop.
+      // wasAuthed is informational; close handlers can decide whether
+      // to react (e.g. show a "reconnecting…" toast).
+      this.notifyClose({
+        reason: 'post_auth',
+        code: event.code,
+        detail: event.reason || undefined,
+      });
+      if (this.shouldReconnect && wasAuthed) {
         this.reconnectTimer = setTimeout(() => this.connect(), 3000);
       }
     };
 
     this.ws.onerror = (event) => {
       console.error('[WS] error:', event);
+      // The native WS error event has no useful diagnostic; surface a
+      // best-effort detail and let onclose carry the reason classifier.
+      const detail =
+        (event as Event & { message?: string }).message ?? undefined;
+      this.notifyError({ detail });
       this.ws?.close();
     };
+  }
+
+  /** Subscribe to close events (pre-auth, post-auth, retries-exhausted). */
+  onClose(handler: CloseHandler): () => void {
+    this.closeHandlers.add(handler);
+    return () => this.closeHandlers.delete(handler);
+  }
+
+  /** Subscribe to low-level error events (rare; usually paired with onclose). */
+  onError(handler: ErrorHandler): () => void {
+    this.errorHandlers.add(handler);
+    return () => this.errorHandlers.delete(handler);
+  }
+
+  private notifyClose(info: { reason: CloseReason; code: number; detail?: string }): void {
+    this.closeHandlers.forEach((h) => {
+      try { h(info); } catch { /* ignore handler errors */ }
+    });
+  }
+
+  private notifyError(info: { detail?: string }): void {
+    this.errorHandlers.forEach((h) => {
+      try { h(info); } catch { /* ignore handler errors */ }
+    });
   }
 
   disconnect(): void {
@@ -92,6 +179,8 @@ export class OpenAgentWS {
     this.openedSessions.clear();
     this.pendingOut = [];
     this.authed = false;
+    this.everAuthed = false;
+    this.reconnectAttempts = 0;
     this.ws?.close();
     this.ws = null;
   }

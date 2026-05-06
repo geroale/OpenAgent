@@ -12,12 +12,12 @@
   },
   "main": "dist/main.js",
   "scripts": {
-    "dev": "tsc && electron .",
+    "dev": "tsc && node ./scripts/bundle-main.js && electron .",
     "build": "tsc && node ./scripts/bundle-main.js && electron-builder",
     "build:mac": "tsc && node ./scripts/bundle-main.js && electron-builder --mac",
     "build:win": "tsc && node ./scripts/bundle-main.js && electron-builder --win",
     "build:linux": "tsc && node ./scripts/bundle-main.js && electron-builder --linux",
-    "start": "tsc && electron ."
+    "start": "tsc && node ./scripts/bundle-main.js && electron ."
   },
   "dependencies": {
     "@noble/ed25519": "^3.1.0",

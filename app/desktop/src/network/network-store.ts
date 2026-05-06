@@ -28,6 +28,11 @@ export interface StoredNetwork {
   /** Absolute path to the cert file. */
   certPath: string;
   lastLoginAt?: number;
+  /** Optional iroh address hints for the coordinator — used to skip
+   *  discovery on subsequent logins. Populated from the original join
+   *  ticket and refreshed when we successfully resolve a peer addr. */
+  coordinatorRelayUrl?: string;
+  coordinatorAddresses?: string[];
 }
 
 export interface NetworkStore {
@@ -97,6 +102,9 @@ export function loadStore(): NetworkStore {
     ) {
       continue;
     }
+    const rawAddrs = Array.isArray(m.coordinator_addresses)
+      ? m.coordinator_addresses.filter((a): a is string => typeof a === 'string' && a.length > 0)
+      : undefined;
     networks.push({
       name: m.name,
       networkId: m.network_id,
@@ -108,6 +116,10 @@ export function loadStore(): NetworkStore {
         ? m.cert_path
         : certPathFor(m.network_id, m.handle),
       lastLoginAt: typeof m.last_login_at === 'number' ? m.last_login_at : undefined,
+      coordinatorRelayUrl: typeof m.coordinator_relay_url === 'string' && m.coordinator_relay_url.length > 0
+        ? m.coordinator_relay_url
+        : undefined,
+      coordinatorAddresses: rawAddrs && rawAddrs.length > 0 ? rawAddrs : undefined,
     });
   }
   return {
@@ -142,6 +154,15 @@ export function saveStore(store: NetworkStore): void {
     if (n.lastLoginAt !== undefined) {
       lines.push(`last_login_at = ${n.lastLoginAt}`);
     }
+    if (n.coordinatorRelayUrl) {
+      lines.push(`coordinator_relay_url = "${escapeTomlString(n.coordinatorRelayUrl)}"`);
+    }
+    if (n.coordinatorAddresses && n.coordinatorAddresses.length > 0) {
+      const arr = n.coordinatorAddresses
+        .map((a) => `"${escapeTomlString(a)}"`)
+        .join(', ');
+      lines.push(`coordinator_addresses = [${arr}]`);
+    }
   }
   const body = lines.join('\n') + '\n';
   const tmp = p + '.tmp';
@@ -154,7 +175,10 @@ function escapeTomlString(s: string): string {
   return s.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
 }
 
-/** Idempotent insert/update keyed by ``name``. Returns the stored row. */
+/** Idempotent insert/update keyed by ``name``. Returns the stored row.
+ *  When optional address hints are provided they overwrite existing
+ *  ones; when omitted, existing hints are preserved (so a re-login from
+ *  a ticketless flow doesn't wipe a useful cache). */
 export function addOrUpdate(
   store: NetworkStore,
   args: {
@@ -163,6 +187,8 @@ export function addOrUpdate(
     coordinatorNodeId: string;
     coordinatorPubkeyHex: string;
     handle: string;
+    coordinatorRelayUrl?: string;
+    coordinatorAddresses?: string[];
   },
 ): StoredNetwork {
   for (let i = 0; i < store.networks.length; i++) {
@@ -177,6 +203,8 @@ export function addOrUpdate(
         addedAt: existing.addedAt,
         certPath: certPathFor(args.networkId, args.handle),
         lastLoginAt: existing.lastLoginAt,
+        coordinatorRelayUrl: args.coordinatorRelayUrl ?? existing.coordinatorRelayUrl,
+        coordinatorAddresses: args.coordinatorAddresses ?? existing.coordinatorAddresses,
       };
       store.networks[i] = updated;
       return updated;
@@ -190,6 +218,8 @@ export function addOrUpdate(
     handle: args.handle,
     addedAt: Date.now() / 1000,
     certPath: certPathFor(args.networkId, args.handle),
+    coordinatorRelayUrl: args.coordinatorRelayUrl,
+    coordinatorAddresses: args.coordinatorAddresses,
   };
   store.networks.push(row);
   if (store.activeNetwork == null) {

@@ -34,15 +34,24 @@ function bundle(entry) {
 }
 
 const dist = path.resolve(__dirname, '..', 'dist');
-bundle(path.join(dist, 'main.js'));
-bundle(path.join(dist, 'preload.js'));
+const targets = [
+  path.join(dist, 'main.js'),
+  path.join(dist, 'preload.js'),
+  path.join(dist, 'network', 'identity.js'),
+  path.join(dist, 'network', 'device-cert.js'),
+  path.join(dist, 'network', 'coordinator-rpc.js'),
+  path.join(dist, 'network', 'ticket.js'),
+];
+for (const t of targets) bundle(t);
 
-// Guard: fail loudly if either ESM-only dep wasn't actually inlined.
-const mainJs = fs.readFileSync(path.join(dist, 'main.js'), 'utf8');
+// Guard: fail loudly if either ESM-only dep wasn't actually inlined in any target.
 const offenders = [/require\(["']@noble\/ed25519["']\)/, /require\(["']cbor2["']\)/];
-for (const re of offenders) {
-  if (re.test(mainJs)) {
-    console.error(`bundle still contains ${re} — would ship a broken DMG`);
-    process.exit(1);
+for (const t of targets) {
+  const src = fs.readFileSync(t, 'utf8');
+  for (const re of offenders) {
+    if (re.test(src)) {
+      console.error(`bundle ${path.relative(dist, t)} still contains ${re} — would ship broken`);
+      process.exit(1);
+    }
   }
 }

@@ -17,9 +17,10 @@ import {
   SrpError,
 } from './srp-client.js';
 import { rpcCall, COORDINATOR_ALPN, RpcError } from './coordinator-rpc.js';
+import { dialWithTimeout, DialTimeoutError } from './dial-helpers.js';
 import { verifyCert, CertVerificationError } from './device-cert.js';
 import type { DeviceCert } from './device-cert.js';
-import type { IrohEndpoint } from './iroh-types.js';
+import type { IrohEndpoint, IrohNodeAddr } from './iroh-types.js';
 
 export class LoginError extends Error {
   constructor(message: string) {
@@ -43,6 +44,10 @@ export interface LoginParams {
   inviteCode?: string;
   /** Optional human label for this device on the coordinator. */
   label?: string;
+  /** Optional address hint (relay URL + direct addresses) for the
+   *  coordinator. When set, iroh skips discovery on the dial — required
+   *  for first-contact in DMG builds where mDNS may be blocked. */
+  coordinatorAddr?: IrohNodeAddr;
 }
 
 export interface RegisterParams extends LoginParams {
@@ -54,6 +59,30 @@ export interface LoginResult {
   cert: DeviceCert;
 }
 
+function coordinatorAddr(params: { coordinatorNodeId: string; coordinatorAddr?: IrohNodeAddr }): IrohNodeAddr {
+  // Caller-supplied hint wins; otherwise iroh has to discover the addr.
+  return params.coordinatorAddr ?? { nodeId: params.coordinatorNodeId };
+}
+
+async function dialCoordinator(
+  endpoint: IrohEndpoint,
+  addr: IrohNodeAddr,
+  step: string,
+) {
+  try {
+    return await dialWithTimeout(endpoint, addr, COORDINATOR_ALPN);
+  } catch (e) {
+    if (e instanceof DialTimeoutError) {
+      throw new LoginError(
+        `${step}: coordinator unreachable (timed out after ${e.timeoutMs}ms). ` +
+        `If the server is on this same machine, allow Local Network access for ` +
+        `OpenAgent in System Settings → Privacy & Security.`,
+      );
+    }
+    throw e;
+  }
+}
+
 /**
  * Register a brand-new ``handle@network`` and return the cert.
  *
@@ -62,9 +91,9 @@ export interface LoginResult {
  * pairs our device). Returns the cert from the login round-trip.
  */
 export async function register(params: RegisterParams): Promise<LoginResult> {
-  const { endpoint, coordinatorNodeId, handle, password, inviteCode } = params;
+  const { endpoint, handle, password, inviteCode } = params;
   const pakeRecord = await makeRegistrationPayload(handle, password);
-  const conn = await endpoint.connect({ nodeId: coordinatorNodeId }, COORDINATOR_ALPN);
+  const conn = await dialCoordinator(endpoint, coordinatorAddr(params), 'register');
   try {
     await rpcCall(conn, 'register', {
       invite: inviteCode,
@@ -88,7 +117,6 @@ export async function register(params: RegisterParams): Promise<LoginResult> {
 export async function login(params: LoginParams): Promise<LoginResult> {
   const {
     endpoint,
-    coordinatorNodeId,
     coordinatorPubkey,
     handle,
     password,
@@ -102,7 +130,7 @@ export async function login(params: LoginParams): Promise<LoginResult> {
 
   let initResult: Record<string, unknown>;
   try {
-    const initConn = await endpoint.connect({ nodeId: coordinatorNodeId }, COORDINATOR_ALPN);
+    const initConn = await dialCoordinator(endpoint, coordinatorAddr(params), 'login_init');
     initResult = await rpcCall(initConn, 'login_init', {
       handle,
       ke1: client.ke1,
@@ -144,7 +172,7 @@ export async function login(params: LoginParams): Promise<LoginResult> {
 
   let finishResult: Record<string, unknown>;
   try {
-    const finishConn = await endpoint.connect({ nodeId: coordinatorNodeId }, COORDINATOR_ALPN);
+    const finishConn = await dialCoordinator(endpoint, coordinatorAddr(params), 'login_finish');
     finishResult = await rpcCall(finishConn, 'login_finish', finishParams);
   } catch (e) {
     if (e instanceof RpcError) {
@@ -205,8 +233,10 @@ export async function refreshCert(params: LoginParams): Promise<LoginResult> {
 export async function fetchNetworkInfo(
   endpoint: IrohEndpoint,
   coordinatorNodeId: string,
+  coordinatorAddr?: IrohNodeAddr,
 ): Promise<Record<string, unknown>> {
-  const conn = await endpoint.connect({ nodeId: coordinatorNodeId }, COORDINATOR_ALPN);
+  const addr: IrohNodeAddr = coordinatorAddr ?? { nodeId: coordinatorNodeId };
+  const conn = await dialCoordinator(endpoint, addr, 'network_info');
   return await rpcCall(conn, 'network_info', {});
 }
 

@@ -12,7 +12,14 @@
  * to open two connections.
  */
 import { GATEWAY_ALPN } from './coordinator-rpc.js';
-import type { IrohConnection, IrohEndpoint, IrohSendStream, IrohRecvStream } from './iroh-types.js';
+import { dialWithTimeout } from './dial-helpers.js';
+import type {
+  IrohConnection,
+  IrohEndpoint,
+  IrohNodeAddr,
+  IrohSendStream,
+  IrohRecvStream,
+} from './iroh-types.js';
 
 export interface GatewayStream {
   send: IrohSendStream;
@@ -26,10 +33,20 @@ export class SessionDialer {
   private readonly endpoint: IrohEndpoint;
   private certWire: Uint8Array;
   private readonly connections: Map<string, Promise<IrohConnection>> = new Map();
+  /** Per-target hint addresses (relay/UDP) seeded from tickets or the
+   *  cert store. Lets ``endpoint.connect`` skip discovery for known peers. */
+  private readonly addrHints: Map<string, IrohNodeAddr> = new Map();
 
   constructor(endpoint: IrohEndpoint, certWire: Uint8Array) {
     this.endpoint = endpoint;
     this.certWire = certWire;
+  }
+
+  /** Seed an address hint for a target. Subsequent dials to ``nodeId``
+   *  use the supplied relay URL + direct addresses instead of relying
+   *  on iroh discovery. Idempotent — last write wins. */
+  setAddrHint(addr: IrohNodeAddr): void {
+    this.addrHints.set(addr.nodeId, addr);
   }
 
   get cert(): Uint8Array {
@@ -73,9 +90,15 @@ export class SessionDialer {
   private async getOrOpenConnection(nodeId: string): Promise<IrohConnection> {
     let p = this.connections.get(nodeId);
     if (p === undefined) {
-      p = this.endpoint.connect({ nodeId }, GATEWAY_ALPN);
+      const hint = this.addrHints.get(nodeId);
+      const addr: IrohNodeAddr = hint ?? { nodeId };
+      p = dialWithTimeout(this.endpoint, addr, GATEWAY_ALPN);
       this.connections.set(nodeId, p);
       p.catch(() => {
+        // Whether the failure is a timeout or a real dial error, evict
+        // so the next caller retries with a fresh attempt — a hung
+        // promise that later resolves is closed by dialWithTimeout's
+        // late-cleanup path.
         if (this.connections.get(nodeId) === p) {
           this.connections.delete(nodeId);
         }

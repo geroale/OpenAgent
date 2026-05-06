@@ -326,6 +326,15 @@ export const useConnection = create<ConnectionState>((set, get) => ({
   },
 }));
 
+/** Hard cap on how long we wait for the gateway's auth_ok / auth_error
+ *  frame after the WebSocket is wired. The loopback proxy is already
+ *  bound at this point, so the budget only covers TCP-to-localhost +
+ *  one iroh stream + one server frame — 15 s is generous. Cleared on
+ *  any terminal outcome (auth_ok, auth_error, pre-auth close, manual
+ *  disconnect). Was: no cap, so a silent gateway hang would lock the
+ *  UI in "Connecting…" forever. */
+const WS_AUTH_TIMEOUT_MS = 15_000;
+
 /** Wire up the WebSocket once we have a sidecar port. */
 function _openWebsocket(
   get: () => ConnectionState,
@@ -338,8 +347,29 @@ function _openWebsocket(
   const url = `ws://${host}:${port}/ws`;
   const ws = new OpenAgentWS(url, undefined);
 
+  // Single-shot finalizer: any of {auth_ok, auth_error, pre-auth close,
+  // retries-exhausted, timeout, disconnect} marks the attempt done so
+  // later events don't double-fire (e.g. close → timer firing 3 s
+  // later and overwriting the error).
+  let attemptDone = false;
+  let authTimer: ReturnType<typeof setTimeout> | null = null;
+  const finalize = () => {
+    attemptDone = true;
+    if (authTimer != null) {
+      clearTimeout(authTimer);
+      authTimer = null;
+    }
+  };
+  // Skip mutations if this attempt is stale (the user clicked Connect
+  // again before this attempt resolved → the store's ws is now a
+  // different instance). Without this, a stale failure could overwrite
+  // a fresh ``isConnecting: true``.
+  const isCurrent = () => get().ws === ws;
+
   ws.onMessage((msg) => {
     if (msg.type === 'auth_ok') {
+      finalize();
+      if (!isCurrent()) return;
       set({
         isConnected: true,
         isConnecting: false,
@@ -374,6 +404,8 @@ function _openWebsocket(
         storage.setItem(STORAGE_KEY, JSON.stringify(updated));
       }
     } else if (msg.type === 'auth_error') {
+      finalize();
+      if (!isCurrent()) return;
       set({
         isConnected: false,
         isConnecting: false,
@@ -381,6 +413,45 @@ function _openWebsocket(
       });
     }
   });
+
+  // Pre-auth WS drops (proxy can't reach the gateway, port stale,
+  // gateway refused the cert pre-handshake) used to be invisible —
+  // ``onclose`` only logged + scheduled a 3 s reconnect. Now the WS
+  // surfaces them through onClose so we clear the loading state.
+  ws.onClose((info) => {
+    if (attemptDone) return;
+    if (info.reason === 'pre_auth' || info.reason === 'retries_exhausted') {
+      finalize();
+      if (!isCurrent()) return;
+      const detail = info.detail || `WebSocket closed before authentication (code=${info.code})`;
+      set({
+        isConnected: false,
+        isConnecting: false,
+        error: humanizeLoginError(detail),
+      });
+      ws.disconnect();
+    }
+    // post_auth drops are handled by the existing reconnect loop in
+    // OpenAgentWS — no UI mutation needed.
+  });
+
+  ws.onError(() => {
+    // onError fires alongside onClose with no extra signal; let the
+    // close handler do the work. Kept registered so future per-error
+    // diagnostics can hook in without re-wiring the store.
+  });
+
+  authTimer = setTimeout(() => {
+    if (attemptDone) return;
+    finalize();
+    if (!isCurrent()) return;
+    set({
+      isConnected: false,
+      isConnecting: false,
+      error: 'The agent didn’t respond in time. Check that the server is running and try again.',
+    });
+    ws.disconnect();
+  }, WS_AUTH_TIMEOUT_MS);
 
   ws.connect();
   setBaseUrl(host, port);

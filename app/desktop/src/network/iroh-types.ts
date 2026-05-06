@@ -38,9 +38,24 @@ export interface IrohConnection {
   remoteNodeId?(): string;
 }
 
+/** Mirror of iroh-js ``NodeAddr`` — passed to ``endpoint.connect`` and
+ *  ``net.addNodeAddr``. ``relayUrl``/``addresses`` are optional; when
+ *  omitted iroh falls back to discovery. */
+export interface IrohNodeAddr {
+  nodeId: string;
+  relayUrl?: string;
+  addresses?: string[];
+}
+
 export interface IrohEndpoint {
-  connect(nodeAddr: { nodeId: string }, alpn: Uint8Array): Promise<IrohConnection>;
+  connect(nodeAddr: IrohNodeAddr, alpn: Uint8Array): Promise<IrohConnection>;
   nodeId(): string;
+}
+
+/** Subset of iroh-js ``Net`` — used to seed known peer addresses so the
+ *  next ``endpoint.connect`` skips discovery. */
+export interface IrohNet {
+  addNodeAddr(addr: IrohNodeAddr): Promise<void>;
 }
 
 export interface IrohNode {

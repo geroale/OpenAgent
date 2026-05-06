@@ -4,12 +4,19 @@
  *
  *   "oa1" || base32-no-pad-lowercase(CBOR{
  *       v: 1, code, node_id, name, network_id, role, bind_to,
+ *       // Optional, added in v0.12.54 to bypass iroh discovery for
+ *       // first-contact dials in DMG builds (mDNS often blocked):
+ *       relay_url?, addresses?,
  *   })
  *
  * The cbor2 decoder is lenient about map-key order on read, but encode
  * order DOES matter for any signed payload. Tickets aren't signed, so
  * round-trip equivalence is enough here — but we preserve key order
  * anyway to keep the encoded string deterministic across boots.
+ *
+ * Optional fields are forward-compatible: tickets minted by older
+ * servers omit them, and ``decodeTicket`` returns ``undefined`` for
+ * those — callers fall back to iroh discovery as before.
  */
 
 import { decode as cborDecode } from 'cbor2';
@@ -27,6 +34,13 @@ export interface InviteTicket {
   networkId: string;
   role: TicketRole;
   bindTo: string;
+  /** Coordinator's home iroh relay URL (optional). When present we feed
+   *  it into ``endpoint.connect`` so iroh skips relay discovery. */
+  relayUrl?: string;
+  /** Coordinator's known direct UDP addresses (optional). When present
+   *  we register them via ``net.addNodeAddr`` BEFORE the first dial so
+   *  iroh has a direct path to try, bypassing mDNS. */
+  addresses?: string[];
 }
 
 export class TicketError extends Error {
@@ -71,6 +85,12 @@ export function decodeTicket(s: string): InviteTicket {
       throw new TicketError(`ticket missing field: ${key}`);
     }
   }
+  const relayUrl = typeof map.relay_url === 'string' && map.relay_url.length > 0
+    ? map.relay_url
+    : undefined;
+  const addresses = Array.isArray(map.addresses)
+    ? map.addresses.filter((a): a is string => typeof a === 'string' && a.length > 0)
+    : undefined;
   return {
     code: String(map.code),
     coordinatorNodeId: String(map.node_id),
@@ -78,5 +98,7 @@ export function decodeTicket(s: string): InviteTicket {
     networkId: String(map.network_id),
     role: (map.role ?? 'user') as TicketRole,
     bindTo: String(map.bind_to ?? ''),
+    relayUrl,
+    addresses: addresses && addresses.length > 0 ? addresses : undefined,
   };
 }

@@ -23,6 +23,15 @@ interface LoopbackHandle {
 
 const handles = new Map<string, LoopbackHandle>();
 
+/** Hard cap on the whole sidecar bring-up: iroh dial + SRP login +
+ *  list_agents + proxy bind. iroh-js exposes no AbortSignal, so we can't
+ *  cancel the inner promise — when the timeout fires we let it run, but
+ *  attach a teardown so any partial RunningLoopback that resolves later
+ *  gets cleaned up rather than leaked. Was: hung indefinitely when iroh
+ *  discovery couldn't reach the coordinator (common in DMG builds where
+ *  macOS Local Network access is blocked). */
+const STARTUP_TIMEOUT_MS = 30_000;
+
 export interface StartLoopbackArgs {
   accountId: string;
   password: string;
@@ -46,7 +55,35 @@ export async function startLoopback(args: StartLoopbackArgs): Promise<number> {
     agent: args.agent,
   };
 
-  const loopback = await startNativeLoopback(nativeArgs);
+  const startPromise = startNativeLoopback(nativeArgs);
+
+  let timeoutHandle: ReturnType<typeof setTimeout> | null = null;
+  let timedOut = false;
+  const timeoutPromise = new Promise<never>((_, reject) => {
+    timeoutHandle = setTimeout(() => {
+      timedOut = true;
+      reject(new Error(`loopback startup timed out after ${STARTUP_TIMEOUT_MS}ms`));
+    }, STARTUP_TIMEOUT_MS);
+  });
+
+  // If the native loopback eventually succeeds AFTER we've timed out, tear
+  // it down so the iroh node + proxy don't leak.
+  startPromise.then(
+    (lb) => {
+      if (timedOut) {
+        lb.stop().catch(() => { /* ignore */ });
+      }
+    },
+    () => { /* error surfaces through Promise.race below */ },
+  );
+
+  let loopback: RunningLoopback;
+  try {
+    loopback = await Promise.race([startPromise, timeoutPromise]);
+  } finally {
+    if (timeoutHandle != null) clearTimeout(timeoutHandle);
+  }
+
   handles.set(args.accountId, {
     id: args.accountId,
     loopback,
