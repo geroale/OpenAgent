@@ -1,7 +1,7 @@
 {
   "name": "openagent-desktop",
   "description": "Persistent AI agent framework with MCP tools, long-term memory, and multi-channel support.",
-  "version": "0.12.53",
+  "version": "0.12.54",
   "private": true,
   "productName": "OpenAgent",
   "homepage": "https://openagent.uno/",
@@ -72,6 +72,9 @@
       "entitlements": "buildResources/entitlements.mac.plist",
       "entitlementsInherit": "buildResources/entitlements.mac.inherit.plist",
       "notarize": true,
+      "extendInfo": {
+        "NSLocalNetworkUsageDescription": "OpenAgent needs to find OpenAgent servers on your local network — required when connecting to a server running on the same Mac or LAN."
+      },
       "target": [
         {
           "target": "dmg",
